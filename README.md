@@ -1,6 +1,10 @@
 # llvm-autofix
 
-Try fixing LLVM bugs (crashes/mis-compilations) automatically.
+llvm-autofix is a research project focused on automatically repairing LLVM bugs and systematically evaluating an agent’s capability to resolve LLVM issues. The current scope is limited to issues in LLVM's middle-end. It includes:
+
++ [llvm-bench (live)](./bench): A continuously updated benchmark containing the latest LLVM middle-end issues.
++ [llvm-autofix-mini](./autofix): A minimal, proof-of-concept agent designed to fix LLVM middle-end issues.
+
 
 ## 🔨 Build
 
@@ -19,8 +23,15 @@ Or you can follow [BUILD.md](./docs/BUILD.md) to install required dependencies a
 ## 🚀 Launch
 
 ```shell
-python -m autofix.main --issue <issue_id> --model <model_name>
+python -m autofix.mini --issue <issue_id> --model <model_name>
 ```
+
+## 🔥 Benchmark
+
+```shell
+./bench/benchmark.sh <agent_name> -B <bench_name> -o <output_dir>
+```
+
 
 ## 👨‍💻‍ Contributions
 

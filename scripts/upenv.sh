@@ -54,7 +54,7 @@ if [[ $LAB_LLVM_ALIVE_TV == "alive-tv not found" ]]; then
   return 1
 fi
 
-export LAB_DATASET_DIR=$LLVM_AUTOFIX_HOME_DIR/dataset
+export LAB_DATASET_DIR=$LLVM_AUTOFIX_HOME_DIR/bench/full
 if [[ ! -d $LAB_DATASET_DIR ]]; then
   echo "Error: dataset directory does not exist at $LAB_DATASET_DIR"
   return 1

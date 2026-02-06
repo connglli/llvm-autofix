@@ -31,7 +31,7 @@ from autofix.llvm.llvm_helper import (
 )
 from autofix.lms.agent import ReachRoundLimit, ReachTokenLimit
 from autofix.lms.tool import FuncToolCallException
-from autofix.main import (
+from autofix.mini import (
   ADDITIONAL_CMAKE_FLAGS,
   ALLOW_MODIFY_ASSERTS,
   MAX_CHAT_ROUNDS,

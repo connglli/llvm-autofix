@@ -11,23 +11,63 @@ USER_WORKING_DIR=$(pwd)
 cd $LLVM_AUTOFIX_HOME_DIR
 
 show_usage() {
-    echo "Usage: $0 [-o <logs_dir>] [-R] [--help]"
-    echo "  -o    Specify directory saving logs (default: benchmark/logs)"
-    echo "  -R    Reset everything otherwise continue from last benchmarking state"
-    echo "  -C    Clean build directories after running each issue"
+    echo "Usage: $0 <agent_name> [-D <model_driver>] [-m <model_name>] [-o <logs_dir>] [-R] [--help]"
+    echo "  <agent_name>  Specify the agent name (autofix.mini or autofix.mswe)"
+    echo "  -B    Specify the benchmark name (live or full; default: live)"
+    echo "  -D    Specify the model driver (openai, openai-generic, or anthropic; default: openai-generic)"
+    echo "  -m    Specify the model name (default: gpt-5)"
+    echo "  -o    Specify directory saving logs (default: benchout/)"
+    echo "  -R    Reset everything otherwise continue from last benchmarking state (default: false)"
+    echo "  -C    Clean build directories after running each issue (default: false)"
     echo "  -h    Show this help message"
 }
 
-# Get current directory (benchmark directory)
-BENCHMARK_DIR=$LLVM_AUTOFIX_HOME_DIR/benchmark
+# Get current directory (bench/ directory)
+BENCH_DIR=$LLVM_AUTOFIX_HOME_DIR/bench
 
 # Parse options and arguments
-LOGGING_DIR=$BENCHMARK_DIR/logs
+if [ $# -lt 1 ]; then
+    echo "Error: agent_name is required as a positional argument"
+    show_usage
+    exit 1
+fi
+
+AGENT_NAME="$1"
+shift
+if [[ "$AGENT_NAME" != "autofix.mini" && "$AGENT_NAME" != "autofix.mswe" ]]; then
+    echo "Error: agent_name must be either 'autofix.mini' or 'autofix.mswe'"
+    exit 1
+fi
+
+MODEL_DRIVER="openai-generic"
+MODEL_NAME="gpt-5"
+BENCH_NAME="live"
+LOGGING_DIR="$LLVM_AUTOFIX_HOME_DIR/benchout"
 RESET_FLAG="0"
 CLEAN_FLAG="0"
 
 while [[ $# -gt 0 ]]; do
     case $1 in
+        -B|--benchmark)
+            BENCH_NAME="$2"
+            shift 2
+            if [[ "$BENCH_NAME" != "live" && "$BENCH_NAME" != "full" ]]; then
+                echo "Error: Benchmark name must be either 'live' or 'full'"
+                exit 1
+            fi
+            ;;
+        -D|--model-driver)
+            MODEL_DRIVER="$2"
+            if [[ "$MODEL_DRIVER" != "openai" && "$MODEL_DRIVER" != "openai-generic" && "$MODEL_DRIVER" != "anthropic" ]]; then
+                echo "Error: MODEL_DRIVER must be one of 'openai', 'openai-generic', or 'anthropic'"
+                exit 1
+            fi
+            shift 2
+            ;;
+        -m|--model-name)
+            MODEL_NAME="$2"
+            shift 2
+            ;;
         -o|--output)
             LOGGING_DIR="$USER_WORKING_DIR/$2"
             if [ -z "$LOGGING_DIR" ]; then
@@ -56,6 +96,9 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
+# Get the list of issues to process from the benchmark directory
+mapfile -t ISSUE_LIST < <(find "$BENCH_DIR/$BENCH_NAME" -name "*.json" -exec basename {} .json \;)
+
 PROCESSED_ISSUES_FILE="$LOGGING_DIR/processed_issues"
 SUCCESS_DIR="$LOGGING_DIR/success"
 FAILURE_DIR="$LOGGING_DIR/failure"
@@ -81,14 +124,6 @@ if [ "$RESET_FLAG" = "1" ]; then
         echo "No failure logs directory found to reset."
     fi
 fi
-
-AGENT_NAME="autofix.main"  # Or "autofix.mswe"
-MODEL_DRIVER="openai-generic"
-MODEL_NAME="gpt-5"
-# The list of issues:
-# - Time: 2024.08.27-2025.08.26 (spanning a year)
-# - Type: Mis-compilation or crash
-readarray -t ISSUE_LIST < "$BENCHMARK_DIR/live_list"
 
 # Create log directories if they don't exist
 mkdir -p "$SUCCESS_DIR"
@@ -130,15 +165,15 @@ get_model_abbr() {
     esac
 }
 
-# Run either autofix.main or autofix.mswe based on AGENT_NAME
+# Run either autofix.mini or autofix.mswe based on AGENT_NAME
 run_agent() {
     local issue_id=$1
     local stats_file=$2
     # TODO: use git worktree for better isolation
     # Fix: in case the agent unexpectedly deleted the repository
     [ ! -d "$LAB_LLVM_DIR" ] && git clone https://github.com/llvm/llvm-project.git "$LAB_LLVM_DIR"
-    if [ "$AGENT_NAME" = "autofix.main" ]; then
-        python -m autofix.main --debug --model "$MODEL_NAME" --driver "$MODEL_DRIVER" --issue "$issue_id" --stats "$stats_file"
+    if [ "$AGENT_NAME" = "autofix.mini" ]; then
+        python -m autofix.mini --debug --model "$MODEL_NAME" --driver "$MODEL_DRIVER" --issue "$issue_id" --stats "$stats_file"
     elif [ "$AGENT_NAME" = "autofix.mswe" ]; then
         python -m autofix.mswe --debug --model "$MODEL_NAME" --issue "$issue_id" --stats "$stats_file"
     else
@@ -188,14 +223,16 @@ fix_issue() {
 
 # Main benchmark execution
 echo "Starting benchmark ..."
-echo "Agent: $AGENT_NAME"
-echo "Model: $MODEL_NAME"
-echo "Driver: $MODEL_DRIVER"
-echo "Total issues to process: ${#ISSUE_LIST[@]}"
-echo "Success logs will be saved to: $SUCCESS_DIR"
-echo "Failure logs will be saved to: $FAILURE_DIR"
-echo "Processed issues file: $PROCESSED_ISSUES_FILE"
-echo "========================================"
+echo "  Agent: $AGENT_NAME"
+echo "  Model: $MODEL_NAME ($MODEL_DRIVER)"
+echo "  Reset: $RESET_FLAG"
+echo "  Clean: $CLEAN_FLAG"
+echo "  Bench: $BENCH_NAME"
+echo "  Success logs will be saved to: $SUCCESS_DIR"
+echo "  Failure logs will be saved to: $FAILURE_DIR"
+echo "  Total issues to process: ${#ISSUE_LIST[@]}"
+echo "  Processed issues file: $PROCESSED_ISSUES_FILE"
+echo "==============================================="
 
 success_count=0
 failure_count=0
