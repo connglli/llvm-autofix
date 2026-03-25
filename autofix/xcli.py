@@ -8,6 +8,7 @@ from argparse import ArgumentParser
 from http.server import BaseHTTPRequestHandler, HTTPServer
 from pathlib import Path
 from typing import Optional
+from uuid import uuid4 as uuid
 
 from autofix.llvm.lab_env import Environment as FixEnvironment
 from autofix.llvm.llvm_helper import (
@@ -25,6 +26,8 @@ from autofix.utils import cmdline
 
 _TEST_SERVER_ADDR = "127.0.0.1"
 _TEST_SERVER_PORT = 3921
+
+LLVM_AUTOFIX_HOME_DIR = os.environ.get("LLVM_AUTOFIX_HOME_DIR")
 
 PROMPT_TEMPLATE = """You are an expert LLVM developer. Please solve this LLVM issue:
 
@@ -175,18 +178,63 @@ def render_xcli_command(
   xcli: str,
   *,
   prompt: str,
+  session: Optional[str] = None,
   model: Optional[str] = None,
 ) -> str:
   # TODO: Output the trajectory in a structured format
   if xcli == "claudecode":
     model_arg = f"--model {model}" if model else ""
-    return f"claude --dangerously-skip-permissions -p --output-format json {model_arg} {shlex.quote(prompt)}"
+    session_arg = f"--session-id {session}" if session else ""
+    return f"claude --dangerously-skip-permissions -p --output-format json {model_arg} {session_arg} {shlex.quote(prompt)}"
   # TODO: Support Codex and Gemini CLI
   raise ValueError(f"Unsupported X-CLI: {xcli}")
 
 
+def save_xcli_trajectory(
+  xcli: str, *, session: str, summary: str, stats: RunStats, stats_path: Path
+):
+  assert xcli == "claudecode", (
+    f"Support for other X-CLI ({xcli}) has not been implemented"
+  )
+
+  sum_dict = json.loads(summary)
+  # Update stats
+  stats.chat_rounds = sum_dict["num_turns"]
+  stats.output_tokens = sum_dict["usage"]["output_tokens"]
+  stats.cached_tokens = (
+    sum_dict["usage"]["cache_creation_input_tokens"]
+    + sum_dict["usage"]["cache_read_input_tokens"]
+  )
+  stats.input_tokens = sum_dict["usage"]["input_tokens"] + stats.cached_tokens
+  stats.total_tokens = stats.input_tokens + stats.output_tokens
+  # Save the summary
+  with stats_path.with_suffix(".summary.json").open("w") as fou:
+    json.dump(sum_dict, fou, indent=2)
+
+  # Find and save the trajectory
+  proj_name = "-".join(str(Path(LLVM_AUTOFIX_HOME_DIR).resolve().absolute()).split("/"))
+  # Trajectory of CC is saved at:
+  # - ~/.claude/projects/{proj_name}/{session} or
+  # ~/.claude/projects/{proj_name}/{session}.jsonl
+  proj_dir = Path.home() / ".claude" / "projects" / proj_name
+
+  traj_jsonl = proj_dir / (session + ".jsonl")
+  if traj_jsonl.exists() and traj_jsonl.is_file():
+    shutil.copy2(traj_jsonl, stats_path.with_suffix(".traj.jsonl"))
+    return
+
+  traj_dir = proj_dir / session
+  if traj_dir.exists() and traj_dir.is_dir():
+    shutil.copy2(traj_dir, stats_path.with_suffix(".traj"))
+    return
+
+  print(
+    f"[WARNING] No trajectory file found for X-CLI {xcli}: neither {traj_jsonl} nor {traj_dir}"
+  )
+
+
 def main():
-  if os.environ.get("LLVM_AUTOFIX_HOME_DIR") is None:
+  if LLVM_AUTOFIX_HOME_DIR is None:
     panic("The llvm-autofix environment has not been brought up.")
 
   args = parse_args()
@@ -254,10 +302,12 @@ def main():
     llvm_alive_tv=llvm_alive_tv,
   )
 
+  session = str(uuid())
   command = render_xcli_command(
     args.xcli,
     prompt=prompt,
     model=args.model,
+    session=session,
   )
   print(f"Agent command prepared: {command[:80]} ...")
 
@@ -282,8 +332,9 @@ def main():
   stats.total_time_sec = time.time()
   try:
     summary = cmdline.check_output(command, timeout=1800, env=env)
-    with stats_path.with_suffix(".summary.json").open("w") as fou:
-      json.dump(json.loads(summary), fou, indent=2)
+    save_xcli_trajectory(
+      args.xcli, session=session, summary=summary, stats=stats, stats_path=stats_path
+    )
     if not stats.patch:
       raise NoAvailablePatchFound("All efforts tried yet no available patches found.")
     if not fixenv.use_entire_regression_test_suite:
@@ -312,6 +363,16 @@ def main():
     with stats_path.open("w") as fou:
       json.dump(stats.as_dict(), fou, indent=2)
     print(f"Generation statistics saved to {stats_path}.")
+
+  print("\n\nFinal Patch")
+  print("-----------")
+  print(stats.patch)
+  print("Reference Patch")
+  print("---------------")
+  print(fixenv.get_reference_patch())
+  print("Statistics")
+  print("----------")
+  print(json.dumps(stats.as_dict(), indent=2))
 
 
 if __name__ == "__main__":
