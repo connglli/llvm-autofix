@@ -220,22 +220,33 @@ class AgentBase:
     return remaining
 
   def run_skill(
-    self, skill_name: str, skill_inst: str, tool_names: List[str], tool_budget: int
+    self,
+    skill_name: str,
+    skill_inst: str,
+    tool_names: List[str],
+    tool_budget: int,
+    context_aware: bool = True,
   ) -> str:
     """Run a skill sub-loop with a specialized instruction and tool subset.
 
     Saves the outer agent state, runs a sub-loop with the given instruction and
     tools, then restores the outer state and returns the skill's result.
+
+    When context aware is False, the skill sub-loop will not have access to the conversation history of the outer loop, effectively making it a standalone agent with only the provided instruction and tools. When context aware is True, the skill sub-loop will have access to the conversation history of the outer loop, allowing it to use the context from previous interactions while still restricting the tools to the provided subset
     """
     from autofix.lms.skill import DoneTool
 
     # Save outer state
-    saved_history = self.history
+    if not context_aware:
+      saved_history = self.history
+    else:
+      saved_history = None
     saved_tools = self.tools
 
     try:
       # Setup sub-loop state
-      self.history = []
+      if not context_aware:
+        self.history = []
       self.tools = ToolRegistry()
 
       # Register only the skill's tool subset from the outer registry
@@ -283,7 +294,11 @@ class AgentBase:
       return result
     finally:
       # Restore outer state
-      self.history = saved_history
+      if not context_aware:
+        assert saved_history is not None, (
+          "saved_history should not be None in context unaware mode"
+        )
+        self.history = saved_history
       self.tools = saved_tools
 
   @retry(wait=wait_random_exponential(min=1, max=60), stop=stop_after_attempt(3))
