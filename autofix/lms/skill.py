@@ -26,6 +26,9 @@ class Skill:
   path: Path = field(default_factory=lambda: Path("."))  # Skill directory
   references: List[Path] = field(default_factory=list)  # Extra files in skill dir
   scripts: List[Path] = field(default_factory=list)  # Executable scripts in skill dir
+  context_fork: bool = (
+    False  # Whether this skill should run as a standalone, context-unaware sub-agent
+  )
 
 
 class DoneTool(FuncToolBase):
@@ -93,6 +96,7 @@ class SkillTool(FuncToolBase):
       skill_inst=prompt,
       tool_names=tool_names,
       tool_budget=self.skill.budget,
+      context_aware=not self.skill.context_fork,
     )
 
 
@@ -148,4 +152,5 @@ def load_skill(path: Path) -> Skill:
     path=skill_dir,
     references=references,
     scripts=scripts,
+    context_fork=header.get("context", None) == "fork",
   )
