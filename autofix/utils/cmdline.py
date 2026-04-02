@@ -55,5 +55,19 @@ def getoutput(cmd: str, timeout: int = 60, check=True, **kwargs):
   return proc.stdout
 
 
+def redirect_stdout(cmd: str, stdout: str, timeout: int = 60, check=True, **kwargs):
+  with open(stdout, "w") as fou:
+    proc = spawn_process(
+      shlex.split(cmd),
+      stdout=fou,
+      stderr=subprocess.PIPE,
+      timeout=timeout,
+      **kwargs,
+    )
+  if check:
+    proc.check_returncode()
+  return proc.stderr
+
+
 def check_output(cmd: str, timeout: int = 60, **kwargs):
   return getoutput(cmd, timeout, check=True, **kwargs)
