@@ -381,10 +381,10 @@ class Harness:
 
     Raises :class:`KeyError` if the skill is not found.
     """
-    for sk in self.skills:
+    for sk in self.get_skills():
       if sk.name == name:
         return sk
-    available = [sk.name for sk in self.skills]
+    available = [sk.name for sk in self.get_skills()]
     raise KeyError(
       f"Skill {name!r} not found. Available skills: {', '.join(available)}"
     )
