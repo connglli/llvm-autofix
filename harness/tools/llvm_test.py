@@ -19,7 +19,7 @@ from harness.lms.tool import FuncToolBase, FuncToolCallException, FuncToolSpec
 # (3) design more applicable regression tests or leverage existing test suites
 # (4) etc.
 class TestTool(FuncToolBase):
-  def __init__(self, env: FixEnv, allow_alt_asserts: bool = True):
+  def __init__(self, env: FixEnv, allow_alt_asserts: bool = False):
     self.env = env
     self.allow_alt_asserts = allow_alt_asserts
 

@@ -46,20 +46,8 @@ AGENT_MAX_CONSUMED_TOKENS = 5_000_000
 # to be careful and think twice when they are editing and testing.
 MAX_TCS_GET_CONTEXT = 250
 MAX_TCS_EDIT_AND_TEST = 25
-MAX_ROLS_PER_TC = 250
 MIN_EDIT_POINT_LINES = 1
-# We usually do not allow the agent to modify assertions in the code
-ALLOW_MODIFY_ASSERTS = False
-VALID_EDIT_POINT_REQUIREMENTS = (
-  "+ NOTICE (on assertion failure): Assertion failures typically indicate earlier errors in execution. Assume all assertions are correct and investigate preceding code or conditions. Edit points can contain but cannot be limited to assertion statements."
-  if not ALLOW_MODIFY_ASSERTS
-  else ""
-)
-VALID_PATCH_REQUIREMENTS = (
-  "+ Is valid and does not modify any assertions in the code."
-  if not ALLOW_MODIFY_ASSERTS
-  else "Is valid."
-)
+
 
 # - ================================================
 # - LLVM settings
@@ -254,7 +242,6 @@ def patch_and_fix(
       issue_symptom=rep.symptom,
       reason_info=reason_info,
       edit_points="\n".join(formatted_edit_points) or "<not-found>",
-      valid_patch_requirements=VALID_PATCH_REQUIREMENTS,
     )
   )
 
@@ -422,7 +409,6 @@ def run_mini_agent(
       trans_point_func=backtrace[-1].func,
       trans_point_stack="\n".join([str(it) for it in reversed(backtrace)]),
       min_edit_point_lines=MIN_EDIT_POINT_LINES,
-      valid_edit_point_requirements=VALID_EDIT_POINT_REQUIREMENTS,
     )
   )
 

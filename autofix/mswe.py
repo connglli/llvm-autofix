@@ -22,7 +22,6 @@ from autofix.mini import (
   ADDITIONAL_CMAKE_FLAGS,
   AGENT_MAX_CHAT_ROUNDS,
   AGENT_MAX_CONSUMED_TOKENS,
-  ALLOW_MODIFY_ASSERTS,
   MAX_TCS_EDIT_AND_TEST,
   NoAvailablePatchFound,
   ReachToolBudget,
@@ -32,7 +31,6 @@ from harness.llvm.harness import Harness
 from harness.lms.agent import ReachRoundLimit, ReachTokenLimit
 from harness.lms.tool import FuncToolCallException
 from harness.tools.bash import FORBIDDEN_TOOLS
-from harness.tools.llvm_test import TestTool
 from harness.utils import bashlex
 from harness.utils.console import get_boxed_console
 
@@ -161,7 +159,7 @@ class MyAgent(DefaultAgent):
 
   def setup(self, harness: Harness):
     self.harness = harness
-    self.tester = TestTool(harness.fixenv, allow_alt_asserts=ALLOW_MODIFY_ASSERTS)
+    self.tester = harness.make_tool("test")
 
   def _test_submission(self) -> Optional[str]:
     # Save the test trajectory
