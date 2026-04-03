@@ -9,11 +9,11 @@ from typing import List, Optional, Tuple
 
 import yaml
 
-from autofix.llvm.debugger import DebuggerBase, StackTrace
-from autofix.llvm.gdb_support import GDB
-from autofix.llvm.lab_env import Environment
-from autofix.llvm.llvm import LLVM, Code, CodeSnippet
-from autofix.llvm.llvm_helper import (
+from harness.llvm.debugger import DebuggerBase, StackTrace
+from harness.llvm.gdb_support import GDB
+from harness.llvm.lab_env import Environment
+from harness.llvm.llvm import LLVM, Code, CodeSnippet
+from harness.llvm.llvm_helper import (
   get_first_failed_test,
   get_llvm_build_dir,
   git_execute,
@@ -22,26 +22,26 @@ from autofix.llvm.llvm_helper import (
   remove_path_from_output,
   set_llvm_build_dir,
 )
-from autofix.llvm.llvm_helper import (
+from harness.llvm.llvm_helper import (
   reset as reset_llvm,
 )
-from autofix.lms.agent import AgentBase
-from autofix.lms.tool import FuncToolBase, FuncToolCallException, FuncToolSpec
-from autofix.tools.code import CodeTool
-from autofix.tools.debug import DebugTool
-from autofix.tools.docs import DocsTool
-from autofix.tools.edit import EditTool
-from autofix.tools.eval import EvalTool
-from autofix.tools.findn import FindNTool
-from autofix.tools.langref import LangRefTool
-from autofix.tools.listn import ListNTool
-from autofix.tools.llvm_mixins import LlvmDirMixin
-from autofix.tools.preview import PreviewTool
-from autofix.tools.readn import ReadNTool
-from autofix.tools.reset import ResetTool
-from autofix.tools.ripgrepn import RipgrepNTool
-from autofix.tools.test import TestTool
-from autofix.utils.console import get_boxed_console
+from harness.lms.agent import AgentBase
+from harness.lms.tool import FuncToolBase, FuncToolCallException, FuncToolSpec
+from harness.tools.code import CodeTool
+from harness.tools.debug import DebugTool
+from harness.tools.docs import DocsTool
+from harness.tools.edit import EditTool
+from harness.tools.eval import EvalTool
+from harness.tools.findn import FindNTool
+from harness.tools.langref import LangRefTool
+from harness.tools.listn import ListNTool
+from harness.tools.llvm_mixins import LlvmDirMixin
+from harness.tools.preview import PreviewTool
+from harness.tools.readn import ReadNTool
+from harness.tools.reset import ResetTool
+from harness.tools.ripgrepn import RipgrepNTool
+from harness.tools.test import TestTool
+from harness.utils.console import get_boxed_console
 
 # - ===============================================
 # - Prompts
@@ -818,11 +818,11 @@ def main():
 
   # Set up used LLMs and agents
   if args.driver == "openai":
-    from autofix.lms.openai_generic import GPTGenericAgent
+    from harness.lms.openai_generic import GPTGenericAgent
 
     agent_class = GPTGenericAgent
   elif args.driver == "anthropic":
-    from autofix.lms.anthropic_generic import ClaudeGenericAgent
+    from harness.lms.anthropic_generic import ClaudeGenericAgent
 
     agent_class = ClaudeGenericAgent
   else:

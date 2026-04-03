@@ -8,7 +8,7 @@ import requests
 from unidiff import PatchSet
 
 import autofix.dataset.hints as hints
-import autofix.llvm.llvm_helper as llvm_helper
+import harness.llvm.llvm_helper as llvm_helper
 
 if os.environ.get("LLVM_HARNESS_HOME_DIR") is None:
   print("Error: The llvm-harness environment has not been brought up.")

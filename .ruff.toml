@@ -28,6 +28,7 @@ exclude = [
     "venv",
 ]
 include = [
+    "harness",
     "autofix"
 ]
 
