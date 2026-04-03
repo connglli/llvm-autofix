@@ -10,8 +10,9 @@ from pathlib import Path
 from typing import Optional
 from uuid import uuid4 as uuid
 
-from autofix.llvm.lab_env import Environment as FixEnvironment
-from autofix.llvm.llvm_helper import (
+from autofix.mini import ADDITIONAL_CMAKE_FLAGS, NoAvailablePatchFound, RunStats
+from harness.llvm.lab_env import Environment as FixEnvironment
+from harness.llvm.llvm_helper import (
   get_first_failed_test,
   get_llvm_build_dir,
   llvm_alive_tv,
@@ -19,10 +20,9 @@ from autofix.llvm.llvm_helper import (
   pretty_render_log,
   set_llvm_build_dir,
 )
-from autofix.lms.tool import FuncToolCallException
-from autofix.mini import ADDITIONAL_CMAKE_FLAGS, NoAvailablePatchFound, RunStats
-from autofix.tools.test import TestTool
-from autofix.utils import cmdline
+from harness.lms.tool import FuncToolCallException
+from harness.tools.test import TestTool
+from harness.utils import cmdline
 
 _TEST_SERVER_ADDR = "127.0.0.1"
 _TEST_SERVER_PORT = 3921
@@ -235,7 +235,7 @@ def save_xcli_trajectory(
 
 def main():
   if LLVM_HARNESS_HOME_DIR is None:
-    panic("The llvm-autofix environment has not been brought up.")
+    panic("The llvm-harness environment has not been brought up.")
 
   args = parse_args()
 

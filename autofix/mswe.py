@@ -19,20 +19,6 @@ from minisweagent.environments.local import LocalEnvironment
 from minisweagent.models.litellm_model import LitellmModel
 from minisweagent.run.utils.save import save_traj
 
-from autofix.llvm.lab_env import Environment as FixEnvironment
-from autofix.llvm.llvm_helper import (
-  get_first_failed_test,
-  get_llvm_build_dir,
-  git_execute,
-  llvm_dir,
-  pretty_render_log,
-  set_llvm_build_dir,
-)
-from autofix.llvm.llvm_helper import (
-  reset as reset_llvm,
-)
-from autofix.lms.agent import ReachRoundLimit, ReachTokenLimit
-from autofix.lms.tool import FuncToolCallException
 from autofix.mini import (
   ADDITIONAL_CMAKE_FLAGS,
   AGENT_MAX_CHAT_ROUNDS,
@@ -43,10 +29,24 @@ from autofix.mini import (
   ReachToolBudget,
   RunStats,
 )
-from autofix.tools.bash import FORBIDDEN_TOOLS
-from autofix.tools.test import TestTool
-from autofix.utils import bashlex
-from autofix.utils.console import get_boxed_console
+from harness.llvm.lab_env import Environment as FixEnvironment
+from harness.llvm.llvm_helper import (
+  get_first_failed_test,
+  get_llvm_build_dir,
+  git_execute,
+  llvm_dir,
+  pretty_render_log,
+  set_llvm_build_dir,
+)
+from harness.llvm.llvm_helper import (
+  reset as reset_llvm,
+)
+from harness.lms.agent import ReachRoundLimit, ReachTokenLimit
+from harness.lms.tool import FuncToolCallException
+from harness.tools.bash import FORBIDDEN_TOOLS
+from harness.tools.test import TestTool
+from harness.utils import bashlex
+from harness.utils.console import get_boxed_console
 
 # TODO: remove duplicates with main.py
 console = get_boxed_console(debug_mode=False)
