@@ -1,0 +1,33 @@
+prompt: |
+  Review the following LLVM patch for fixing the given LLVM issue.
+
+  ## LLVM Patch to Review
+
+  ```diff
+  {patch_diff}
+  ```
+
+  ## LLVM Issue Reproduction
+
+  Type: {issue_type}
+
+  Reproducer (LLVM IR): ```bash
+  cat {issue_rep_path}
+  {issue_rep_code}
+  ```
+
+  LLVM's Symptom: ```bash
+  {issue_command}
+  {issue_symptom}
+  ```
+
+  ## Information
+
+  - The root directory of the LLVM project is: {llvm_dir}
+  - The build directory is: {build_dir}
+
+  ## Workflow
+
+  1. Use the `llvm-patchreview` skill to review the patch and generate a review report.
+  2. Save the generated review report into {report_path}.
+  3. You are done.

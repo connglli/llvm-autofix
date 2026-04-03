@@ -29,7 +29,8 @@ exclude = [
 ]
 include = [
     "harness",
-    "autofix"
+    "autofix",
+    "autoreview"
 ]
 
 # Same as Black.
