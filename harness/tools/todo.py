@@ -8,7 +8,8 @@ class TodoTool(FuncToolBase):
   def spec(self) -> FuncToolSpec:
     return FuncToolSpec(
       "todo",
-      "Manage a todo list to track sub-tasks and goals during the analysis and repair process.",
+      "Track your progress by adding, completing, or listing sub-tasks. "
+      "Use this to plan multi-step investigations and ensure you don't lose track of what you've tried.",
       [
         FuncToolSpec.Param(
           "action",

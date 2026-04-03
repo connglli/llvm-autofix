@@ -13,7 +13,7 @@ class RipgrepNTool(FuncToolBase):
   def spec(self) -> FuncToolSpec:
     return FuncToolSpec(
       "ripgrep",
-      f"Print lines that match a specified pattern in the llvm/ directory. This is exactly the same `rg` (ripgrep) command in Linux, but with results being sorted alphabetically, and only returns {self.n} results starting from a given index.",
+      f"Search file contents for a regex pattern using ripgrep. Use this to find function definitions, variable usages, macro expansions, or any text across the codebase. Returns up to {self.n} matching lines sorted alphabetically from a given index.",
       [
         FuncToolSpec.Param(
           "k",

@@ -15,7 +15,8 @@ class DocsTool(FuncToolBase):
   def spec(self) -> FuncToolSpec:
     return FuncToolSpec(
       "docs",
-      "Obtain the documentation of a function in LLVM",
+      "Retrieve the header comment / documentation of an LLVM C++ function by name. "
+      "Use this to understand a function's purpose and contract before reading its implementation.",
       [FuncToolSpec.Param("func", "string", True, "Name of the function")],
     )
 

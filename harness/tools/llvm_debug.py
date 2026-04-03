@@ -9,10 +9,10 @@ class DebugTool(FuncToolBase):
   def spec(self) -> FuncToolSpec:
     return FuncToolSpec(
       "debug",
-      "Execute a GDB command and obtain the results from gdb, stdout, and stderr.\n"
-      "Initially the debugger is stopped at the first transformation/crash breakpoint.\n"
-      "Note that you are not allowed to start a new session or close the current session (i.e., executing run/start/quit/exit).\n"
-      "Shell commands (shell/make/pipe) are also forbidden due to security reasons.",
+      "Execute a GDB command in the attached debugger session and return the result. "
+      "The debugger is paused at the crash site or transformation breakpoint. "
+      "Use this to inspect the call stack, print variables, navigate frames, or set watchpoints. "
+      "Commands that start new sessions (run/start/quit) or invoke shell (shell/make/pipe) are forbidden.",
       [
         FuncToolSpec.Param("cmd", "string", True, "The GDB command"),
       ],

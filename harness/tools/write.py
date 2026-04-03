@@ -9,7 +9,7 @@ class WriteTool(FuncToolBase):
   def spec(self) -> FuncToolSpec:
     return FuncToolSpec(
       "write",
-      "Write the content to a file, overwriting its existing content or creating it if it doesn't exist.",
+      "Write content to a file, overwriting it entirely or creating it if it doesn't exist. Use this when you need to create a new file (e.g., a test case) or rewrite a file from scratch. Prefer `edit` for partial modifications.",
       [
         FuncToolSpec.Param(
           "file",

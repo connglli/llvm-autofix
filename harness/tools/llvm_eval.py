@@ -9,7 +9,9 @@ class EvalTool(FuncToolBase):
   def spec(self) -> FuncToolSpec:
     return FuncToolSpec(
       "eval",
-      "Evaluate an expression in the debugger and obtain its value. Please make sure that you have set the correct frame in the debugger before using this tool.",
+      "Evaluate a C++ expression in the current debugger frame and return its value. "
+      "Use this to inspect LLVM IR objects, instruction operands, or any in-scope variable. "
+      "Make sure you are in the correct stack frame first (use `debug` to navigate).",
       [
         FuncToolSpec.Param(
           "expr",

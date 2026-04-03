@@ -9,7 +9,7 @@ class EditTool(FuncToolBase):
   def spec(self) -> FuncToolSpec:
     return FuncToolSpec(
       "edit",
-      "Edit a file to replace text within a file with new text.",
+      "Replace an exact code snippet in a file with new content. Use this when you need to modify specific lines — provide the exact existing text to match and the replacement. Prefer this over `write` for targeted changes.",
       [
         FuncToolSpec.Param(
           "file",

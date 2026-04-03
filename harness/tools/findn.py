@@ -12,7 +12,7 @@ class FindNTool(FuncToolBase):
   def spec(self) -> FuncToolSpec:
     return FuncToolSpec(
       "find",
-      f"Find all files following a specified pattern (e.g., `src/**/*.cpp`, `**/*.h`) in the specified directory. The results will be sorted alphabetically and only {self.n} results will be returned starting from a given index.",
+      f"Find files matching a glob pattern (e.g., `**/*.cpp`, `*.h`) within a directory. Use this to locate source files, headers, or test files by name pattern. Returns up to {self.n} results sorted alphabetically from a given index.",
       [
         FuncToolSpec.Param(
           "k",
