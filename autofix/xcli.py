@@ -47,7 +47,7 @@ LLVM's Symptom: ```bash
 
 ## Recommended Workflow
 
-This workflows should be done step-by-step so that you can iterate on your changes and any possible problems.
+This workflow should be done step-by-step so that you can iterate on your changes and any possible problems.
 
 1. Analyze the codebase by finding and reading relevant files
 2. Edit the source code to resolve the issue
@@ -90,7 +90,7 @@ def parse_args():
     "--xcli",
     type=str,
     required=True,
-    choices=["claudecode", "codex", "geminicli"],
+    choices=["claudecode"],
     help="The XXX CLI/Agent to use for fixing the issue.",
   )
   parser.add_argument(
@@ -118,7 +118,7 @@ def start_test_server(fixenv: FixEnvironment, stats: RunStats):
   """
   Start HTTP server to serve the test tool and return the commands to request the server.
   The server is started in a daemon thread on port _TEST_SERVER_ADDR:_TEST_SERVER_PORT and will call the test tool whenever receiving a POST request.
-  Whenver received any POST request, the server should call the test tool and return the result.
+  Whenever received any POST request, the server should call the test tool and return the result.
   """
 
   tester = TestTool(fixenv, allow_alt_asserts=True)
@@ -225,7 +225,7 @@ def save_xcli_trajectory(
 
   traj_dir = proj_dir / session
   if traj_dir.exists() and traj_dir.is_dir():
-    shutil.copy2(traj_dir, stats_path.with_suffix(".traj"))
+    shutil.copytree(traj_dir, stats_path.with_suffix(".traj"), dirs_exist_ok=True)
     return
 
   print(
