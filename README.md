@@ -2,10 +2,10 @@
 
 llvm-harness is an agentic harness of [LLVM](https://github.com/llvm/llvm-project). Its current focus is automatic repair of LLVM bugs and systematic evaluation of agents' ability to resolve LLVM issues. **Longer term, it aims to become an off‑the‑shelf agentic harness for all LLVM tasks that benefit from an agent**. It includes:
 
-+ [llvm tools](./harness/tools): A collection of agent-friendly LLVM tool wrappers for agents.
-+ [llvm skills](./harness/skills): A collection of LLVM domain knowledge built into agent skills.
++ [llvm harness](./harness): A collection of agent-friendly LLVM [tools](./harness/tools) and LLVM domain knowledge built into [skills](./harness/skills).
 + [llvm-bench (live)](./bench): A continuously updated benchmark of recent LLVM issues, currently focused on middle-end bugs.
 + [llvm-autofix-mini](./autofix): A minimal proof-of-concept agent targeted at fixing LLVM middle-end issues.
++ [llvm-autoreview](./autoreview): A minimal proof-of-concept agent targeted at reviewing LLVM patches.
 
 ## 🔥 News
 
