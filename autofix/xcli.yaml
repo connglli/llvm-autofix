@@ -1,0 +1,43 @@
+prompts:
+  fix: |
+    You are an expert LLVM developer. Please solve this LLVM issue:
+
+    ------ BEGIN ISSUE ------
+    Type: {issue_type}
+
+    Reproducer (LLVM IR): ```bash
+    cat {issue_rep_path}
+    {issue_rep_code}
+    ```
+
+    LLVM's Symptom: ```bash
+    {issue_command}
+    {issue_symptom}
+    ```
+    ------  END ISSUE  ------
+
+    ## Recommended Workflow
+
+    This workflow should be done step-by-step so that you can iterate on your changes and any possible problems.
+
+    1. Analyze the codebase by finding and reading relevant files
+    2. Edit the source code to resolve the issue
+    3. Verify your fix works by running the `submit-patch` command
+    4. Based on the output of `submit-patch`, repeat steps 1-3 as necessary until the issue is resolved
+
+    ## Necessary Information
+
+    - The root directory of the LLVM project is: {llvm_dir}
+    - The build directory is: {build_dir}
+    - You may use `submit-patch` command to test your patch or use existing LLVM tools. For example:
+      - For miscompilation bugs, you may use alive2, a translation verification tool, which is available at: {llvm_alive_tv}.
+      - For crash bugs, you may use the built opt.
+      - You may also use built lli, llvm-lit, etc.
+
+    ## Disallowed Behaviors
+
+    + Accessing the Internet or any external resources. You should only rely on the information provided in the issue description and your existing knowledge to solve the issue.
+    + Accessing the files other than LLVM source/build directories.
+    + Using Git to checkout other commits in the LLVM repository. You should only modify the code based on the current state of the repository.
+    + Modifying regression tests.
+    + Using workarounds or temporary fixes that don't address the root cause of the issue. Your fix should be a proper solution to the problem. For example, modifying assertions in the code is not allowed. You should not weaken any assertion checks in the code. If you think an assertion is too strict and causes the issue, you should analyze why this assertion is there and find a way to fix the issue without removing or weakening the assertion.
