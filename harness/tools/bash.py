@@ -35,9 +35,9 @@ class BashTool(FuncToolBase):
   def spec(self) -> FuncToolSpec:
     return FuncToolSpec(
       "bash",
-      "Execute a bash command in the llvm/ directory. "
-      "This tool should be used for commands that are not provided by other tools, "
-      "such as building the project, running specific tests, or using complex shell commands with pipes and redirections.",
+      "Execute a shell command in the LLVM source directory. "
+      "Use this for operations not covered by other tools — building the project, running opt/lli/llvm-lit, "
+      "piping commands together, or any other shell task. Some commands (git, rm, curl, etc.) are restricted.",
       [
         FuncToolSpec.Param(
           "command",

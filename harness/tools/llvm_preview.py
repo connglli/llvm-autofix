@@ -9,7 +9,8 @@ class PreviewTool(FuncToolBase):
   def spec(self) -> FuncToolSpec:
     return FuncToolSpec(
       "preview",
-      "Preview the changes made by the current patch.",
+      "Show the current diff of all changes you have made so far. "
+      "Use this to review your patch before testing, or to check which files you have modified.",
       [],
     )
 

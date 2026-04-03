@@ -12,7 +12,8 @@ class ResetTool(FuncToolBase):
   def spec(self) -> FuncToolSpec:
     return FuncToolSpec(
       "reset",
-      "Checkout the original file from the repository.",
+      "Restore a file to its original state at the base commit, discarding all local edits. "
+      "Use this to undo a broken change before trying a different approach.",
       [
         FuncToolSpec.Param(
           "file",

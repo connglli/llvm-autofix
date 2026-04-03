@@ -10,7 +10,7 @@ class ListNTool(FuncToolBase):
   def spec(self) -> FuncToolSpec:
     return FuncToolSpec(
       "list",
-      f"List up to {self.n} contents of a directory. All contents of the directory will be sorted alphabetically and only up to {self.n} of them are returned starting from a given index.",
+      f"List directory contents (files and subdirectories), sorted alphabetically, returning up to {self.n} entries from a given index. Use this to explore the LLVM source tree structure.",
       [
         FuncToolSpec.Param(
           "directory",

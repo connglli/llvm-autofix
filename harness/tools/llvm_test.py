@@ -26,8 +26,9 @@ class TestTool(FuncToolBase):
   def spec(self) -> FuncToolSpec:
     return FuncToolSpec(
       "test",
-      "Check if the patch fixes the original issue and passes all regression tests.\n"
-      "This tool is very expensive. Please use it if you are ready.",
+      "Build LLVM with your changes, verify the original bug is fixed, and run regression tests. "
+      "Use this when you believe your patch is ready — it rebuilds and runs the full test suite, so it is expensive. "
+      "Check the output carefully: a failure means the patch is incorrect or introduces regressions.",
       [],
     )
 

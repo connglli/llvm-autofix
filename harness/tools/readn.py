@@ -10,7 +10,7 @@ class ReadNTool(FuncToolBase):
   def spec(self) -> FuncToolSpec:
     return FuncToolSpec(
       "read",
-      f"Read the next {self.n} lines of content of a file starting a specific line.",
+      f"Read up to {self.n} lines from a file starting at a given line number. Use this to inspect source code, headers, or any text file in the LLVM tree.",
       [
         FuncToolSpec.Param(
           "file",

@@ -9,7 +9,9 @@ class LangRefTool(FuncToolBase):
   def spec(self) -> FuncToolSpec:
     return FuncToolSpec(
       "langref",
-      "Get the detailed description of an LLVM instruction/intrinsic from the LLVM Language Reference Manual.",
+      "Look up the semantics of an LLVM IR instruction or intrinsic from the Language Reference Manual. "
+      "Use this when you need to understand the exact behavior of an instruction (e.g., `select`, `phi`, `llvm.uadd.with.overflow`) "
+      "to reason about correctness or diagnose a miscompilation.",
       [
         FuncToolSpec.Param(
           "inst",
