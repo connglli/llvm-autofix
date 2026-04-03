@@ -55,9 +55,10 @@ class DoneTool(FuncToolBase):
 class SkillTool(FuncToolBase):
   """Wraps a Skill as a FuncToolBase so it can be called like any other tool."""
 
-  def __init__(self, skill: Skill, agent: GenericAgent):
+  def __init__(self, skill: Skill, agent: GenericAgent, inject_materials: bool = False):
     self.skill = skill
     self.agent = agent
+    self.inject_materials = inject_materials
 
   def spec(self) -> FuncToolSpec:
     return FuncToolSpec(
@@ -73,22 +74,26 @@ class SkillTool(FuncToolBase):
       prompt = prompt.replace("{{ " + key + " }}", str(value))
 
     # Inject script paths (agent can run them via bash tool)
-    if self.skill.scripts:
+    if self.skill.scripts and self.inject_materials:
       scripts_text = "\n".join(
         f"- `{s.resolve().absolute()}`" for s in self.skill.scripts
       )
-      prompt += "\n\n# Available Bash Scripts:\n" + scripts_text
+      prompt += (
+        "\n\n# Scripts\n\n"
+        + scripts_text
+        + "\n\nUse the `bash` tool to run these scripts as needed."
+      )
 
     # Inject reference file paths (agent can read them on demand)
-    if self.skill.references:
+    if self.skill.references and self.inject_materials:
       refs_text = "\n".join(
         f"- `{ref.resolve().absolute()}`" for ref in self.skill.references
       )
-      prompt += "\n\n# References:\n" + refs_text
+      prompt += "\n\n# References\n\n" + refs_text
 
     # Auto-add bash to tools if skill has scripts
     tool_names = list(self.skill.tools)
-    if self.skill.scripts and "bash" not in tool_names:
+    if tool_names and self.skill.scripts and "bash" not in tool_names:
       tool_names.append("bash")
 
     return self.agent.run_skill(
