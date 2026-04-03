@@ -2,7 +2,7 @@ import json
 import os
 import sys
 
-import harness.llvm.llvm_helper as llvm_helper
+import harness.llvm.intern.llvm as llvm_helper
 
 max_build_jobs = os.cpu_count()
 

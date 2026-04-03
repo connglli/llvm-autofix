@@ -11,15 +11,7 @@ from typing import Optional
 from uuid import uuid4 as uuid
 
 from autofix.mini import ADDITIONAL_CMAKE_FLAGS, NoAvailablePatchFound, RunStats
-from harness.llvm.lab_env import Environment as FixEnvironment
-from harness.llvm.llvm_helper import (
-  get_first_failed_test,
-  get_llvm_build_dir,
-  llvm_alive_tv,
-  llvm_dir,
-  pretty_render_log,
-  set_llvm_build_dir,
-)
+from harness.llvm.harness import Harness
 from harness.lms.tool import FuncToolCallException
 from harness.tools.llvm_test import TestTool
 from harness.utils import cmdline
@@ -56,8 +48,8 @@ This workflow should be done step-by-step so that you can iterate on your change
 
 ## Necessary Information
 
-- The root directory of the LLVM project is: {workdir}
-- The build directory is: {builddir}
+- The root directory of the LLVM project is: {llvm_dir}
+- The build directory is: {build_dir}
 - You may use `submit-patch` command to test your patch or use existing LLVM tools. For example:
   - For miscompilation bugs, you may use alive2, a translation verification tool, which is available at: {llvm_alive_tv}.
   - For crash bugs, you may use the built opt.
@@ -114,28 +106,23 @@ def parse_args():
   return parser.parse_args()
 
 
-def start_test_server(fixenv: FixEnvironment, stats: RunStats):
+def start_test_server(harness: Harness, stats: RunStats):
   """
   Start HTTP server to serve the test tool and return the commands to request the server.
-  The server is started in a daemon thread on port _TEST_SERVER_ADDR:_TEST_SERVER_PORT and will call the test tool whenever receiving a POST request.
-  Whenever received any POST request, the server should call the test tool and return the result.
   """
-
-  tester = TestTool(fixenv, allow_alt_asserts=True)
+  tester = TestTool(harness.fixenv, allow_alt_asserts=True)
 
   def do_test():
-    # Save the test trajectory
-    patch = fixenv.dump_patch()
+    patch = harness.fixenv.dump_patch()
     stats.test_traj.append(patch)
     try:
       res = tester.call()
     except FuncToolCallException as e:
-      return f"FAILURE\n\n{e}"  # Return the error message
+      return f"FAILURE\n\n{e}"
     if res == "<success>":
-      # We are successful, save the patch
       stats.patch = patch
-      return "SUCCESS"  # Success
-    return res  # Return the error message
+      return "SUCCESS"
+    return res
 
   class Handler(BaseHTTPRequestHandler):
     def do_POST(self):
@@ -246,124 +233,90 @@ def main():
   if stats_path.exists():
     panic(f"Stats file {args.stats} already exists.")
 
-  issue = args.issue
-  set_llvm_build_dir(os.path.join(get_llvm_build_dir(), issue))
-  fixenv = FixEnvironment(
-    issue,
-    base_model_knowledge_cutoff="2023-12-31Z",
-    additional_cmake_args=ADDITIONAL_CMAKE_FLAGS,
-    max_build_jobs=os.environ.get("LLVM_HARNESS_MAX_BUILD_JOBS"),
-    use_entire_regression_test_suite=args.aggressive_testing,
-  )
-  fixenv.reset()
+  with Harness.from_issue(
+    args.issue,
+    cmake_args=ADDITIONAL_CMAKE_FLAGS,
+    aggressive_testing=args.aggressive_testing,
+  ) as h:
+    print("Building LLVM and try reproducing the issue ...")
+    issue = h.reproduce()
+    print("Issue reproduced successfully.")
 
-  print("Building LLVM and try reproducing the issue ...")
-  check_failed, check_log = fixenv.check_fast()
-  if check_failed:
-    panic(f"Failed to build or reproduce the issue. Please try again.\n\n{check_log}")
-
-  reprod_data = get_first_failed_test(check_log)
-  reprod_args = reprod_data["args"]
-  reprod_code = reprod_data["body"]
-  reprod_log = pretty_render_log(reprod_data["log"])
-  print("Issue reproduced successfully.")
-  reprod_file = os.path.join("/", "tmp", f"test_{issue}.ll")
-  with open(reprod_file, "w") as fou:
-    fou.write(reprod_code)
-
-  prompt = PROMPT_TEMPLATE.format(
-    issue_type=fixenv.get_bug_type(),
-    issue_rep_path=reprod_file,
-    issue_rep_code=reprod_code,
-    issue_command=" ".join(
-      list(
-        filter(
-          lambda x: x != "",
-          reprod_args.replace("< ", " ")
-          .replace("%s", reprod_file)
-          .replace("2>&1", "")
-          .replace("'", "")
-          .replace('"', "")
-          .replace("opt", os.path.join(get_llvm_build_dir(), "bin", "opt"), 1)
-          .strip()
-          .split(" "),
-        )
-      )
-    ),
-    issue_symptom=reprod_log,
-    workdir=llvm_dir,
-    builddir=get_llvm_build_dir(),
-    llvm_alive_tv=llvm_alive_tv,
-  )
-
-  session = str(uuid())
-  command = render_xcli_command(
-    args.xcli,
-    prompt=prompt,
-    model=args.model,
-    session=session,
-  )
-  print(f"Agent command prepared: {command[:80]} ...")
-
-  # The generation statistics
-  stats = RunStats(command=vars(args))
-
-  # Start the test server in a daemon thread to serve the test tool
-  test_commands, test_server = start_test_server(fixenv, stats)
-
-  # Write submit-patch directly into a temp bin dir and add it to PATH
-  tmp_bin = os.path.join("/", "tmp", "llvm-autofix-bin")
-  os.makedirs(tmp_bin, exist_ok=True)
-  submit_patch_script = os.path.join(tmp_bin, "submit-patch")
-  with open(submit_patch_script, "w") as fou:
-    fou.write(test_commands)
-  os.chmod(submit_patch_script, 0o755)
-  env = os.environ.copy()
-  env["PATH"] = tmp_bin + ":" + env.get("PATH", "")
-
-  # Run the agent command to generate patches and test them until a patch passes the test tool or all attempts are exhausted.
-  print("Starting to fix the issue ...")
-  stats.total_time_sec = time.time()
-  try:
-    summary = cmdline.check_output(command, timeout=1800, cwd=llvm_dir, env=env)
-    save_xcli_trajectory(
-      args.xcli, session=session, summary=summary, stats=stats, stats_path=stats_path
+    prompt = PROMPT_TEMPLATE.format(
+      issue_type=issue.bug_type,
+      issue_rep_path=str(issue.file_path),
+      issue_rep_code=issue.source,
+      issue_command=" ".join(issue.command),
+      issue_symptom=issue.symptom,
+      llvm_dir=str(h.llvm_dir),
+      build_dir=str(h.build_dir),
+      llvm_alive_tv=h.alive_tv or "N/A",
     )
-    if not stats.patch:
-      raise NoAvailablePatchFound("All efforts tried yet no available patches found.")
-    if not fixenv.use_entire_regression_test_suite:
-      print("Post-validating the generated patch ...")
-      fixenv.use_entire_regression_test_suite = True
-      passed, errmsg = fixenv.check_midend()
-      if passed:
-        passed, errmsg = fixenv.check_regression_diff()
-      fixenv.use_entire_regression_test_suite = False
-      if not passed:
-        stats.patch = None
-        print("Post-validation failed:", errmsg)
-        raise NoAvailablePatchFound("Post validation failed")
-      print("Passed")
-  except Exception as e:
-    import traceback
 
-    stats.error = type(e).__name__
-    stats.errmsg = str(e)
-    stats.traceback = traceback.format_exc()
+    session = str(uuid())
+    command = render_xcli_command(
+      args.xcli,
+      prompt=prompt,
+      model=args.model,
+      session=session,
+    )
+    print(f"Agent command prepared: {command[:80]} ...")
 
-    raise e
-  finally:
-    test_server.shutdown()
-    stats.total_time_sec = time.time() - stats.total_time_sec
-    with stats_path.open("w") as fou:
-      json.dump(stats.as_dict(), fou, indent=2)
-    print(f"Generation statistics saved to {stats_path}.")
+    stats = RunStats(command=vars(args))
+    test_commands, test_server = start_test_server(h, stats)
+
+    # Write submit-patch directly into a temp bin dir and add it to PATH
+    tmp_bin = os.path.join("/", "tmp", "llvm-autofix-bin")
+    os.makedirs(tmp_bin, exist_ok=True)
+    submit_patch_script = os.path.join(tmp_bin, "submit-patch")
+    with open(submit_patch_script, "w") as fou:
+      fou.write(test_commands)
+    os.chmod(submit_patch_script, 0o755)
+    env = os.environ.copy()
+    env["PATH"] = tmp_bin + ":" + env.get("PATH", "")
+
+    print("Starting to fix the issue ...")
+    stats.total_time_sec = time.time()
+    try:
+      summary = cmdline.check_output(command, timeout=1800, env=env)
+      save_xcli_trajectory(
+        args.xcli, session=session, summary=summary, stats=stats, stats_path=stats_path
+      )
+      if not stats.patch:
+        raise NoAvailablePatchFound("All efforts tried yet no available patches found.")
+      if not h.fixenv.use_entire_regression_test_suite:
+        print("Post-validating the generated patch ...")
+        h.fixenv.use_entire_regression_test_suite = True
+        passed, errmsg = h.fixenv.check_midend()
+        if passed:
+          passed, errmsg = h.fixenv.check_regression_diff()
+        h.fixenv.use_entire_regression_test_suite = False
+        if not passed:
+          stats.patch = None
+          print("Post-validation failed:", errmsg)
+          raise NoAvailablePatchFound("Post validation failed")
+        print("Passed")
+    except Exception as e:
+      import traceback
+
+      stats.error = type(e).__name__
+      stats.errmsg = str(e)
+      stats.traceback = traceback.format_exc()
+
+      raise e
+    finally:
+      test_server.shutdown()
+      stats.total_time_sec = time.time() - stats.total_time_sec
+      with stats_path.open("w") as fou:
+        json.dump(stats.as_dict(), fou, indent=2)
+      print(f"Generation statistics saved to {stats_path}.")
 
   print("\n\nFinal Patch")
   print("-----------")
   print(stats.patch)
   print("Reference Patch")
   print("---------------")
-  print(fixenv.get_reference_patch())
+  print(h.fixenv.get_reference_patch())
   print("Statistics")
   print("----------")
   print(json.dumps(stats.as_dict(), indent=2))

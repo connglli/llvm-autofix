@@ -6,15 +6,11 @@ from typing import Dict, List, Set, Tuple
 import tree_sitter_cpp
 from tree_sitter import Language, Parser, Tree, TreeCursor
 
-from harness.llvm.llvm_helper import (
-  get_llvm_build_dir,
-  llvm_dir,
-)
-from harness.utils import cmdline
+from harness.llvm.intern.llvm import llvm_dir
 
 
 @dataclass
-class Code:
+class CodeLine:
   line_number: int
   code: str
   annotation: str = ""
@@ -22,13 +18,13 @@ class Code:
 
 class CodeSnippet:
   header: str
-  lines: Dict[int, Code]
+  lines: Dict[int, CodeLine]
 
   def __init__(self):
     self.header = ""
     self.lines = dict()
 
-  def add_line(self, line: Code):
+  def add_line(self, line: CodeLine):
     line.code = line.code.rstrip("\n")
     self.lines[line.line_number] = line
 
@@ -36,7 +32,7 @@ class CodeSnippet:
     if line_number in self.lines:
       self.lines[line_number].annotation = annotation
     else:
-      self.lines[line_number] = Code(line_number, "", annotation)
+      self.lines[line_number] = CodeLine(line_number, "", annotation)
 
   def set_header(self, header: str):
     self.header = header
@@ -62,10 +58,9 @@ class CodeSnippet:
     return rendered
 
 
-class LLVM:
+class LlvmCode:
   def __init__(self):
-    self.opt = Path(get_llvm_build_dir()) / "bin" / "opt"
-    self.repo = Path(llvm_dir)
+    self.llvm_dir = Path(llvm_dir)
     CXX_LANGUAGE = Language(tree_sitter_cpp.language())
     self.cxx_parser = Parser(CXX_LANGUAGE)
 
@@ -155,18 +150,12 @@ class LLVM:
       if file.match("llvm/lib/Analysis/*.cpp") or file.match(
         "llvm/lib/Transforms/*/*.cpp"
       ):
-        content = (self.repo / file).read_text()
+        content = (self.llvm_dir / file).read_text()
         match = pattern.search(content)
         if match:
           debug_type = match.group(1)
           debug_types.add(debug_type.strip())
     return list(debug_types)
-
-  def run_opt(
-    self, reprod: Path, options: List[str], check=True, **kwargs
-  ) -> Tuple[str, str]:
-    cmd = " ".join([str(self.opt.absolute())] + options + [str(reprod.absolute())])
-    return cmd, cmdline.getoutput(cmd, check=check, **kwargs).decode()
 
   def find_function(
     self, tree: Tree, start_line: int, end_line: int, func_name: str
@@ -215,7 +204,7 @@ class LLVM:
     self, code: CodeSnippet, lines: List[str], start_line: int, end_line: int
   ) -> CodeSnippet:
     for line in range(start_line, end_line + 1):
-      code.add_line(Code(line, lines[line]))
+      code.add_line(CodeLine(line, lines[line]))
     return code
 
   def collect_header_comments(self, lines: List[str], start_lineno: int) -> str:
@@ -243,7 +232,7 @@ class LLVM:
   ) -> CodeSnippet:
     code = CodeSnippet()
 
-    with open(self.repo / file_name, "r") as f:
+    with open(self.llvm_dir / file_name, "r") as f:
       src = f.read()
     lines = [""] + src.splitlines(keepends=True)
     if start_line >= len(lines):
@@ -262,3 +251,115 @@ class LLVM:
     start_line = min(cursor.node.start_point.row + 1, start_line)
     end_line = cursor.node.end_point.row
     return self.get_full_func_def(code, lines, start_line, end_line + 1)
+
+  def extract_snippet(
+    self,
+    file: str,
+    start_line: int,
+    end_line: int,
+    *,
+    context: int = 0,
+  ) -> str:
+    """Read source lines from *file* and render as a :class:`CodeSnippet`.
+
+    Lines are 1-indexed.  *context* adds extra lines before and after
+    the specified range.
+    """
+    file_path = self.llvm_dir / file
+    if not file_path.exists():
+      raise ValueError(f"File {file} does not exist.")
+    lines = [""] + file_path.read_text().splitlines()
+    if start_line < 1 or end_line < 1:
+      raise ValueError(
+        f"Line numbers {start_line} and {end_line} must be positive integers."
+      )
+    if start_line > end_line:
+      raise ValueError(
+        f"Start line {start_line} cannot be greater than end line {end_line}."
+      )
+    if max(start_line, end_line) >= len(lines):
+      raise ValueError(
+        f"Line numbers {start_line} and {end_line} are out of bounds for {file}"
+      )
+    start_line = max(1, start_line - context)
+    end_line = min(len(lines) - 1, end_line + context)
+    code = CodeSnippet()
+    for line in range(start_line, end_line + 1):
+      code.add_line(CodeLine(line, lines[line].rstrip()))
+    return code.render()
+
+  def parse_langref_desc(self, keywords: set[str]) -> dict[str, str]:
+    """Extract LangRef documentation for the given IR keywords."""
+    langref_path = self.llvm_dir / "llvm" / "docs" / "LangRef.rst"
+    if not langref_path.exists():
+      return {}
+    langref = langref_path.read_text()
+    desc = {}
+    sep1 = ".. _"
+    sep2 = "\n^^^"
+    for keyword in keywords:
+      matched = re.search(f"\n'``{keyword}.+\n\\^", langref)
+      if matched is None:
+        continue
+      beg, end = matched.span()
+      beg = langref.rfind(sep1, None, beg)
+      end1 = langref.find(sep2, end)
+      end2 = langref.rfind(sep1, None, end1)
+      desc[keyword] = langref[beg:end2]
+    return desc
+
+  @staticmethod
+  def infer_related_components(diff_files: list[str]) -> set[str]:
+    """Map changed file paths to LLVM component names."""
+    prefixes = [
+      "llvm/lib/Analysis/",
+      "llvm/lib/Transforms/Scalar/",
+      "llvm/lib/Transforms/Vectorize/",
+      "llvm/lib/Transforms/Utils/",
+      "llvm/lib/Transforms/IPO/",
+      "llvm/lib/Transforms/",
+      "llvm/lib/IR/",
+    ]
+    components = set()
+    for file in diff_files:
+      for prefix in prefixes:
+        if file.startswith(prefix):
+          component_name = (
+            file.removeprefix(prefix)
+            .split("/")[0]
+            .removesuffix(".cpp")
+            .removesuffix(".h")
+          )
+          if component_name != "":
+            if (
+              component_name.startswith("VPlan")
+              or component_name.startswith("LoopVectoriz")
+              or component_name.startswith("VPRecipe")
+            ):
+              component_name = "LoopVectorize"
+            if component_name.startswith("ScalarEvolution"):
+              component_name = "ScalarEvolution"
+            if component_name.startswith("ConstantFold"):
+              component_name = "ConstantFold"
+            if "AliasAnalysis" in component_name:
+              component_name = "AliasAnalysis"
+            if component_name.startswith("Attributor"):
+              component_name = "Attributor"
+            if file.startswith("llvm/lib/IR"):
+              component_name = "IR"
+            components.add(component_name)
+            break
+    return components
+
+  @staticmethod
+  def parse_ir_keywords(ir: str) -> set[str]:
+    """Extract instruction and intrinsic names from LLVM IR text."""
+    keywords = set()
+    instruction_pattern = re.compile(r"%.+ = (\w+) ")
+    for match in re.findall(instruction_pattern, ir):
+      keywords.add(match)
+    intrinsic_pattern = re.compile(r"@(llvm.\w+)\(")
+    for match in re.findall(intrinsic_pattern, ir):
+      keywords.add(match)
+    keywords.discard("call")
+    return keywords

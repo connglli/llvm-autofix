@@ -9,7 +9,7 @@ from pwnlib.context import context
 from pwnlib.util.misc import which
 
 from harness.llvm.debugger import DebuggerBase, StackTrace, Symbol, TraceItem
-from harness.llvm.llvm_helper import llvm_dir
+from harness.llvm.intern.llvm import llvm_dir
 
 INIT_GDB_SCRIPT = f"""
 set confirm off

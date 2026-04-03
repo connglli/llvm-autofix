@@ -1,12 +1,10 @@
-from pathlib import Path
-
+from harness.llvm.access import AccessControl
 from harness.lms.tool import FuncToolBase, FuncToolCallException, FuncToolSpec
-from harness.tools.llvm_mixins import LlvmSourceMixin
 
 
-class ReadNTool(FuncToolBase, LlvmSourceMixin):
-  def __init__(self, llvm_dir: str, n: int):
-    self.llvm_dir = Path(llvm_dir).resolve().absolute()
+class ReadNTool(FuncToolBase):
+  def __init__(self, acl: AccessControl, n: int = 250):
+    self.acl = acl
     self.n = n
 
   def spec(self) -> FuncToolSpec:
@@ -34,7 +32,7 @@ class ReadNTool(FuncToolBase, LlvmSourceMixin):
       raise FuncToolCallException(
         f"Position must be a positive integer, but {position} was given."
       )
-    file_full_path = self.check_llvm_file(file)
+    file_full_path = self.acl.check_readable_file(file)
     try:
       lines = file_full_path.read_text(encoding="utf-8").splitlines(keepends=True)
     except Exception as e:

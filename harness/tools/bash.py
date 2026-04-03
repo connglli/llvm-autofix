@@ -1,9 +1,8 @@
 import shlex
-from pathlib import Path
 from subprocess import CalledProcessError
 
+from harness.llvm.access import AccessControl
 from harness.lms.tool import FuncToolBase, FuncToolCallException, FuncToolSpec
-from harness.tools.llvm_mixins import LlvmSourceMixin
 from harness.utils import bashlex, cmdline
 
 # TODO: add other tools that do not require permission
@@ -29,9 +28,9 @@ FORBIDDEN_TOOLS = [
 ]
 
 
-class BashTool(FuncToolBase, LlvmSourceMixin):
-  def __init__(self, llvm_dir: str, max_output_length: int = 4096):
-    self.llvm_dir = Path(llvm_dir).resolve().absolute()
+class BashTool(FuncToolBase):
+  def __init__(self, acl: AccessControl, max_output_length: int = 4096):
+    self.acl = acl
     self.max_output_length = max_output_length
 
   def spec(self) -> FuncToolSpec:
@@ -73,10 +72,8 @@ class BashTool(FuncToolBase, LlvmSourceMixin):
     bash_cmd = f"bash -c {shlex.quote(command)}"
 
     try:
-      # Use getoutput with check=True to catch and handle errors,
-      # but we capture stdout/stderr together via cmdline.getoutput.
       output = cmdline.getoutput(
-        bash_cmd, cwd=self.llvm_dir, check=True, timeout=timeout
+        bash_cmd, cwd=self.acl.root, check=True, timeout=timeout
       )
       output = output.decode("utf-8")
       # Check the length of the output, if is too long, we retain

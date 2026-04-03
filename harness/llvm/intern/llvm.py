@@ -1,5 +1,4 @@
 import os
-import re
 import subprocess
 import tempfile
 from multiprocessing import Pool
@@ -7,8 +6,6 @@ from pathlib import Path
 from typing import Dict, List
 
 from harness.utils import cmdline
-
-llvm_dir = os.environ["LAB_LLVM_DIR"]
 
 _OPT_CRASH_INDICATORS = [
   "LLVM ERROR",
@@ -19,11 +16,7 @@ _OPT_CRASH_INDICATORS = [
   "PLEASE submit a bug report",
 ]
 
-
-def is_opt_crash(msg: str) -> bool:
-  return any(indicator in msg for indicator in _OPT_CRASH_INDICATORS)
-
-
+llvm_dir = os.environ["LAB_LLVM_DIR"]
 __llvm_build_dir = os.environ["LAB_LLVM_BUILD_DIR"]
 llvm_alive_tv = os.environ["LAB_LLVM_ALIVE_TV"]
 dataset_dir = os.environ["LAB_DATASET_DIR"]
@@ -31,6 +24,16 @@ if "--quiet" not in subprocess.run(
   ["ninja", "--help"], capture_output=True
 ).stderr.decode("utf-8"):
   raise RuntimeError("Please update ninja to version 1.11.0 or later")
+
+
+def _decode_output(output):
+  if output is None:
+    return ""
+  return output.decode()
+
+
+def is_opt_crash(msg: str) -> bool:
+  return any(indicator in msg for indicator in _OPT_CRASH_INDICATORS)
 
 
 def git_execute(args):
@@ -44,71 +47,6 @@ def reset(commit):
   git_execute(["clean", "-fdx"])
   git_execute(["checkout", "."])
   git_execute(["checkout", commit])
-
-
-def infer_related_components(diff_files):
-  prefixes = [
-    "llvm/lib/Analysis/",
-    "llvm/lib/Transforms/Scalar/",
-    "llvm/lib/Transforms/Vectorize/",
-    "llvm/lib/Transforms/Utils/",
-    "llvm/lib/Transforms/IPO/",
-    "llvm/lib/Transforms/",
-    "llvm/lib/IR/",
-  ]
-  components = set()
-  for file in diff_files:
-    for prefix in prefixes:
-      if file.startswith(prefix):
-        component_name = (
-          file.removeprefix(prefix)
-          .split("/")[0]
-          .removesuffix(".cpp")
-          .removesuffix(".h")
-        )
-        if component_name != "":
-          if (
-            component_name.startswith("VPlan")
-            or component_name.startswith("LoopVectoriz")
-            or component_name.startswith("VPRecipe")
-          ):
-            component_name = "LoopVectorize"
-          if component_name.startswith("ScalarEvolution"):
-            component_name = "ScalarEvolution"
-          if component_name.startswith("ConstantFold"):
-            component_name = "ConstantFold"
-          if "AliasAnalysis" in component_name:
-            component_name = "AliasAnalysis"
-          if component_name.startswith("Attributor"):
-            component_name = "Attributor"
-          if file.startswith("llvm/lib/IR"):
-            component_name = "IR"
-          components.add(component_name)
-          break
-  return components
-
-
-def get_langref_desc(keywords, commit):
-  langref = str(git_execute(["show", f"{commit}:llvm/docs/LangRef.rst"]))
-  desc = dict()
-  sep1 = ".. _"
-  sep2 = "\n^^^"
-  for keyword in keywords:
-    matched = re.search(f"\n'``{keyword}.+\n\\^", langref)
-    if matched is None:
-      continue
-    beg, end = matched.span()
-    beg = langref.rfind(sep1, None, beg)
-    end1 = langref.find(sep2, end)
-    end2 = langref.rfind(sep1, None, end1)
-    desc[keyword] = langref[beg:end2]
-  return desc
-
-
-def decode_output(output):
-  if output is None:
-    return ""
-  return output.decode()
 
 
 def build(max_build_jobs: int, additional_cmake_args=[]):
@@ -152,7 +90,7 @@ def build(max_build_jobs: int, additional_cmake_args=[]):
     ).decode()
     return (True, log)
   except subprocess.CalledProcessError as e:
-    return (False, log + "\n" + decode_output(e.output))
+    return (False, log + "\n" + _decode_output(e.output))
 
 
 def is_valid_comment(comment):
@@ -163,7 +101,7 @@ def is_valid_comment(comment):
   return True
 
 
-def apply(patch: str):
+def apply_patch(patch: str):
   try:
     out = subprocess.check_output(
       ["git", "-C", llvm_dir, "apply"],
@@ -173,7 +111,7 @@ def apply(patch: str):
     ).decode("utf-8")
     return (True, out)
   except subprocess.CalledProcessError as e:
-    return (False, str(e) + "\n" + decode_output(e.output))
+    return (False, str(e) + "\n" + _decode_output(e.output))
 
 
 def filter_out_unsupported_feats(src: str):
@@ -218,7 +156,7 @@ def alive2_check(src: str, tgt: str, additional_args: str, repro: bool):
         )
         return (failure if repro else success, {"src": src, "tgt": tgt, "log": out})
   except subprocess.CalledProcessError as e:
-    return (False, str(e) + "\n" + decode_output(e.output))
+    return (False, str(e) + "\n" + _decode_output(e.output))
 
 
 def copy_triple(input: str, out: bytes):
@@ -279,20 +217,20 @@ def verify_dispatch(
       new_input = copy_datalayout(new_input, output)
       res, log = alive2_check(new_input, output.decode(), additional_args, repro)
       if isinstance(log, str):
-        log = decode_output(out.stderr) + "\n" + log
+        log = _decode_output(out.stderr) + "\n" + log
       else:
-        log["opt_stderr"] = decode_output(out.stderr)
+        log["opt_stderr"] = _decode_output(out.stderr)
       return (res, log)
-    return (not repro, "success\n" + decode_output(out.stderr))
+    return (not repro, "success\n" + _decode_output(out.stderr))
   except subprocess.CalledProcessError as e:
     return (
       repro and type == "crash",
-      str(e) + "\n" + decode_output(e.output) + "\n" + decode_output(e.stderr),
+      str(e) + "\n" + _decode_output(e.output) + "\n" + _decode_output(e.stderr),
     )
   except subprocess.TimeoutExpired as e:
     return (
       repro and type == "hang",
-      str(e) + "\n" + decode_output(e.output) + "\n" + decode_output(e.stderr),
+      str(e) + "\n" + _decode_output(e.output) + "\n" + _decode_output(e.stderr),
     )
 
 
@@ -368,9 +306,9 @@ def verify_lit(
     ).decode()
     return (True, out)
   except subprocess.CalledProcessError as e:
-    return (False, str(e) + "\n" + decode_output(e.output))
+    return (False, str(e) + "\n" + _decode_output(e.output))
   except subprocess.TimeoutExpired as e:
-    return (False, str(e) + "\n" + decode_output(e.output))
+    return (False, str(e) + "\n" + _decode_output(e.output))
 
 
 # TODO: Use https://github.com/llvm/llvm-project/blob/main/.ci/generate_test_report_lib.py for pretty test result reporting.

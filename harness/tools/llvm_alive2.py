@@ -4,7 +4,7 @@ import subprocess
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
-from harness.llvm.llvm_helper import filter_out_unsupported_feats
+from harness.llvm.intern.llvm import filter_out_unsupported_feats
 from harness.lms.tool import FuncToolBase, FuncToolCallException, FuncToolSpec
 from harness.utils.cmdline import spawn_process
 

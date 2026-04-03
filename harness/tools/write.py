@@ -1,12 +1,10 @@
-from pathlib import Path
-
+from harness.llvm.access import AccessControl
 from harness.lms.tool import FuncToolBase, FuncToolCallException, FuncToolSpec
-from harness.tools.llvm_mixins import LlvmSourceMixin
 
 
-class WriteTool(FuncToolBase, LlvmSourceMixin):
-  def __init__(self, llvm_dir: str):
-    self.llvm_dir = Path(llvm_dir).resolve().absolute()
+class WriteTool(FuncToolBase):
+  def __init__(self, acl: AccessControl):
+    self.acl = acl
 
   def spec(self) -> FuncToolSpec:
     return FuncToolSpec(
@@ -26,9 +24,8 @@ class WriteTool(FuncToolBase, LlvmSourceMixin):
     )
 
   def _call(self, *, file: str, content: str, **kwargs) -> str:
-    full_path = self.check_llvm_file(file, should_exist=False)
+    full_path = self.acl.check_editable_file(file, should_exist=False)
     try:
-      # Ensure the parent directory exists
       full_path.parent.mkdir(parents=True, exist_ok=True)
       full_path.write_text(content, encoding="utf-8")
       return f"File {file} written successfully."

@@ -2,7 +2,7 @@ import shlex
 import subprocess
 from pathlib import Path
 
-from harness.llvm.llvm_helper import is_opt_crash
+from harness.llvm.intern.llvm import is_opt_crash
 from harness.lms.tool import FuncToolBase, FuncToolCallException, FuncToolSpec
 from harness.tools.llvm_mixins import LlvmBuildDirMixin
 from harness.utils.cmdline import spawn_process

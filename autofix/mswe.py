@@ -3,7 +3,6 @@ import os
 import shlex
 import time
 from argparse import ArgumentParser
-from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
 
@@ -29,18 +28,7 @@ from autofix.mini import (
   ReachToolBudget,
   RunStats,
 )
-from harness.llvm.lab_env import Environment as FixEnvironment
-from harness.llvm.llvm_helper import (
-  get_first_failed_test,
-  get_llvm_build_dir,
-  git_execute,
-  llvm_dir,
-  pretty_render_log,
-  set_llvm_build_dir,
-)
-from harness.llvm.llvm_helper import (
-  reset as reset_llvm,
-)
+from harness.llvm.harness import Harness
 from harness.lms.agent import ReachRoundLimit, ReachTokenLimit
 from harness.lms.tool import FuncToolCallException
 from harness.tools.bash import FORBIDDEN_TOOLS
@@ -62,24 +50,6 @@ EDITING_TOOLS = [
   "sed",
   "awk",
 ]
-
-
-@dataclass
-class Issue:
-  type: str
-  rep_path: str
-  rep_code: str
-  command: str
-  symptom: str
-
-  def as_dict(self) -> dict:
-    return {
-      "issue_type": self.type,
-      "issue_rep_path": self.rep_path,
-      "issue_rep_code": self.rep_code,
-      "issue_command": self.command,
-      "issue_symptom": self.symptom,
-    }
 
 
 class MyModel(LitellmModel):
@@ -184,86 +154,18 @@ class MyAgent(DefaultAgent):
       )["agent"],
     )
     self.stats = stats
-    self.issue = None
-    self.fixenv = None
+    self.harness: Harness | None = None
     self.tester = None
     self.test_budget = MAX_TCS_EDIT_AND_TEST
     self.edit_budget = MAX_TCS_EDIT_AND_TEST
 
-  def setup_llvm(self, issue: str, aggressive_testing: bool = False):
-    console.print("Setting up the buggy LLVM environment ...")
-    self.issue = issue
-    set_llvm_build_dir(os.path.join(get_llvm_build_dir(), issue))
-    self.fixenv = FixEnvironment(
-      issue,
-      base_model_knowledge_cutoff="2023-12-31Z",
-      additional_cmake_args=ADDITIONAL_CMAKE_FLAGS,
-      max_build_jobs=os.environ.get("LLVM_HARNESS_MAX_BUILD_JOBS"),
-      use_entire_regression_test_suite=aggressive_testing,
-    )
-    bug_type = self.fixenv.get_bug_type()
-    if bug_type not in [
-      "crash",
-      "miscompilation",
-    ]:  # We only support crash and miscompilation for now
-      panic(f"Unsupported bug type: {bug_type}")
-    try:
-      self.fixenv.reset()
-    except Exception as e:
-      console.print(
-        f"Warning: Failed to reset HEAD to {self.fixenv.get_base_commit()}: {e}",
-        color="yellow",
-      )
-      console.print("Sync the repository and try again.", color="yellow")
-      reset_llvm("main")
-      git_execute(["pull", "origin", "main"])
-      try:
-        self.fixenv.reset()
-      except Exception as e:
-        panic(f"Failed to reset HEAD to {self.fixenv.get_base_commit()}: {e}")
-    self.tester = TestTool(self.fixenv, allow_alt_asserts=ALLOW_MODIFY_ASSERTS)
-
-  def setup_issue(self) -> Issue:
-    console.print("Building LLVM and try reproducing the issue ...")
-    check_failed, check_log = self.fixenv.check_fast()
-    if check_failed:
-      panic(f"Failed to build or reproduce the issue. Please try again.\n\n{check_log}")
-
-    reprod_data = get_first_failed_test(check_log)
-    reprod_args = reprod_data["args"]
-    reprod_code = reprod_data["body"]
-    reprod_log = pretty_render_log(reprod_data["log"])
-    console.print("Issue reproduced successfully.")
-
-    reprod_file = os.path.join("/", "tmp", f"test_{self.issue}.ll")
-    with open(reprod_file, "w") as fou:
-      fou.write(reprod_code)
-
-    return Issue(
-      type=self.fixenv.get_bug_type(),
-      rep_path=reprod_file,
-      rep_code=reprod_code,
-      command=" ".join(
-        list(
-          filter(
-            lambda x: x != "",
-            reprod_args.replace("< ", " ")
-            .replace("%s", reprod_file)
-            .replace("2>&1", "")
-            .replace("'", "")
-            .replace('"', "")
-            .replace("opt", os.path.join(get_llvm_build_dir(), "bin", "opt"), 1)
-            .strip()
-            .split(" "),
-          )
-        )
-      ),
-      symptom=reprod_log,
-    )
+  def setup(self, harness: Harness):
+    self.harness = harness
+    self.tester = TestTool(harness.fixenv, allow_alt_asserts=ALLOW_MODIFY_ASSERTS)
 
   def _test_submission(self) -> Optional[str]:
     # Save the test trajectory
-    patch = self.fixenv.dump_patch()
+    patch = self.harness.fixenv.dump_patch()
     self.stats.test_traj.append(patch)
     try:
       res = self.tester.call()
@@ -363,32 +265,46 @@ def main():
 
   try:
     stats = RunStats(command=vars(args))
-    agent = MyAgent(args.model, args.driver, stats, workdir=llvm_dir)
-    agent.setup_llvm(args.issue, aggressive_testing=args.aggressive_testing)
-    issue = agent.setup_issue()
-    stats.total_time_sec = time.time()
-    console.print("Starting to fix the issue ...")
-    exit_status, result = agent.run(
-      "",
-      **issue.as_dict(),
-      forbidden_tools=", ".join(FORBIDDEN_TOOLS),
-      workdir=llvm_dir,
-    )
-    if not stats.patch:
-      raise NoAvailablePatchFound("All efforts tried yet no available patches found.")
-    if not agent.fixenv.use_entire_regression_test_suite:
-      console.print("Post-validating the generated patch ...")
-      agent.fixenv.use_entire_regression_test_suite = True
-      passed, errmsg = agent.fixenv.check_midend()
-      if passed:
-        passed, errmsg = agent.fixenv.check_regression_diff()
-      agent.fixenv.use_entire_regression_test_suite = False
-      if not passed:
-        stats.patch = None
-        console.printb(title="Post-validation", message=errmsg)
-        raise NoAvailablePatchFound("Post validation failed")
-      console.print("Passed")
-    extra_info = {}
+
+    with Harness.from_issue(
+      args.issue,
+      cmake_args=ADDITIONAL_CMAKE_FLAGS,
+      aggressive_testing=args.aggressive_testing,
+    ) as h:
+      agent = MyAgent(args.model, args.driver, stats, workdir=str(h.llvm_dir))
+      agent.setup(h)
+
+      console.print("Building LLVM and try reproducing the issue ...")
+      issue = h.reproduce()
+      console.print("Issue reproduced successfully.")
+
+      stats.total_time_sec = time.time()
+      console.print("Starting to fix the issue ...")
+      exit_status, result = agent.run(
+        "",
+        issue_type=issue.bug_type,
+        issue_rep_path=str(issue.file_path),
+        issue_rep_code=issue.source,
+        issue_command=" ".join(issue.command),
+        issue_symptom=issue.symptom,
+        forbidden_tools=", ".join(FORBIDDEN_TOOLS),
+        workdir=str(h.llvm_dir),
+      )
+      if not stats.patch:
+        raise NoAvailablePatchFound("All efforts tried yet no available patches found.")
+      if not h.fixenv.use_entire_regression_test_suite:
+        console.print("Post-validating the generated patch ...")
+        h.fixenv.use_entire_regression_test_suite = True
+        passed, errmsg = h.fixenv.check_midend()
+        if passed:
+          passed, errmsg = h.fixenv.check_regression_diff()
+        h.fixenv.use_entire_regression_test_suite = False
+        if not passed:
+          stats.patch = None
+          console.printb(title="Post-validation", message=errmsg)
+          raise NoAvailablePatchFound("Post validation failed")
+        console.print("Passed")
+      extra_info = {}
   except Exception as e:
     import traceback
 
@@ -427,7 +343,7 @@ def main():
   console.print(stats.patch)
   console.print("Reference Patch")
   console.print("---------------")
-  console.print(agent.fixenv.get_reference_patch())
+  console.print(h.fixenv.get_reference_patch())
   console.print("Statistics")
   console.print("----------")
   console.print(json.dumps(stats.as_dict(), indent=2))

@@ -4,7 +4,7 @@ import os
 
 from unidiff import PatchSet
 
-import harness.llvm.llvm_helper as llvm_helper
+import harness.llvm.intern.llvm as llvm_helper
 
 bug_type = {
   "miscompilation": 0,

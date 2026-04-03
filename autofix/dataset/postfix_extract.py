@@ -8,7 +8,8 @@ import requests
 from unidiff import PatchSet
 
 import autofix.dataset.hints as hints
-import harness.llvm.llvm_helper as llvm_helper
+import harness.llvm.intern.llvm as llvm_helper
+from harness.llvm.intern.llvm_code import LlvmCode
 
 if os.environ.get("LLVM_HARNESS_HOME_DIR") is None:
   print("Error: The llvm-harness environment has not been brought up.")
@@ -106,7 +107,7 @@ if "/AsmParser/" in changed_files or "/Bitcode/" in changed_files:
   exit(0)
 
 # Component level
-components = llvm_helper.infer_related_components(changed_files.split("\n"))
+components = LlvmCode.infer_related_components(changed_files.split("\n"))
 # Extract patch
 patch = llvm_helper.git_execute(
   ["show", fix_commit, "--", "llvm/lib/*", "llvm/include/*"]
