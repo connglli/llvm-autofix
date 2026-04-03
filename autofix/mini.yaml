@@ -59,7 +59,7 @@ prompts:
     3. **Root Cause Analysis**: Connect the observations to the underlying cause in the code.
     4. **Proposed Edit Point(s)**
        + Each edit point should be at least {min_edit_point_lines} lines long
-       {valid_edit_point_requirements}
+       + NOTICE (on assertion failure): Assertion failures typically indicate earlier errors in execution. Assume all assertions are correct and investigate preceding code or conditions. Edit points can contain but cannot be limited to assertion statements.
     5. **Conclusion**: Summarize the fix and its expected effect.
 
   repair: |
@@ -104,7 +104,7 @@ prompts:
     3. **Implement**: Use the `edit` tool to apply your proposed changes to the code.
     4. **Verify**: Use the `test` tool to confirm that your patch:
          + Is syntactically correct and does not introduce new syntax errors.
-         {valid_patch_requirements}
+         + Is valid and does not modify any assertions in the code.
          + Fixes the original issue shown in the reproducer.
          + Does not introduce any new regressions.
          + Does not turn off the problematic transformation or analysis entirely unless absolutely necessary.

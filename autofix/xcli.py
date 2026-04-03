@@ -13,7 +13,6 @@ from uuid import uuid4 as uuid
 from autofix.mini import ADDITIONAL_CMAKE_FLAGS, NoAvailablePatchFound, RunStats
 from harness.llvm.harness import Harness
 from harness.lms.tool import FuncToolCallException
-from harness.tools.llvm_test import TestTool
 from harness.utils import cmdline
 
 _TEST_SERVER_ADDR = "127.0.0.1"
@@ -110,7 +109,7 @@ def start_test_server(harness: Harness, stats: RunStats):
   """
   Start HTTP server to serve the test tool and return the commands to request the server.
   """
-  tester = TestTool(harness.fixenv, allow_alt_asserts=True)
+  tester = harness.make_tool("test")
 
   def do_test():
     patch = harness.fixenv.dump_patch()
