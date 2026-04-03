@@ -707,8 +707,8 @@ def get_tool_list(fixenv: Environment, llvm: LLVM, debugger: DebuggerBase):
 
 
 def get_skill_list():
-  # The list of our skills and their call limits.
-  skills_dir = Path(__file__).parent / "skills"
+  # The list of our skills and their call limits. We load all.
+  skills_dir = Path(__file__).parent.parent / "harness" / "skills"
   return [
     (sk.resolve().absolute(), MAX_TCS_GET_CONTEXT)
     for sk in skills_dir.iterdir()
