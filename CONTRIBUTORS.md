@@ -10,10 +10,10 @@ After cloning this project into your server:
 2. Reopen VS Code and call the Command Pallete up by `Ctrl+Shift+P`.
 3. Type `Remote-SSH` and select `Remote-SSH: Connect to Host...`.
 4. Enter your server address and your password to connect to your server.
-5. Open the llvm-autofix project in VS Code.
+5. Open the llvm-harness project in VS Code.
 6. Type `Dev Containers` and select `Dev Containers: Rebuild and Reopen in Container`.
 7. Wait until VS Code build our devcontainer and import the project successfully.
-8. Call the terminal up to check if we are successful by typing `whoami`. If it shows `autofix`, we are successful.
+8. Call the terminal up to check if we are successful by typing `whoami`. If it shows `harness`, we are successful.
 
 ## Step 1. Install Dependencies
 

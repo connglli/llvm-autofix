@@ -7,8 +7,8 @@ There are two options to build the project.
 ### Step 1. Build the Image
 
 ```shell
-docker build -t llvm-autofix-base:latest -f .devcontainer/Dockerfile .
-docker build -t llvm-autofix:latest -f Dockerfile --build-arg USER_UID=$(id -u) --build-arg USER_GID=$(id -g) .
+docker build -t llvm-harness-base:latest -f .devcontainer/Dockerfile .
+docker build -t llvm-harness:latest -f Dockerfile --build-arg USER_UID=$(id -u) --build-arg USER_GID=$(id -g) .
 ```
 
 Note, it may take ~15 minutes to build the image, depending on your machine.
@@ -17,13 +17,13 @@ Note, it may take ~15 minutes to build the image, depending on your machine.
 
 ```shell
 git clone <path-to-repo>
-cd llvm-autofix
+cd llvm-harness
 ```
 
 ### Step 3. Start the Container
 
 ```shell
-docker run --rm -it -v $(pwd):/llvm-autofix --cap-add=SYS_PTRACE --security-opt seccomp=unconfined llvm-autofix:latest
+docker run --rm -it -v $(pwd):/llvm-harness --cap-add=SYS_PTRACE --security-opt seccomp=unconfined llvm-harness:latest
 ```
 
 Reminder: If you prefer to using local models for example [ollama](https://github.com/ollama/ollama), remember to add `--gpus=all` to the above command for NVIDIA.
@@ -48,7 +48,7 @@ Note that, each time you open a new terminal that does not inherit the global en
 
 ```shell
 git clone <path-to-repo>
-cd llvm-autofix
+cd llvm-harness
 ```
 
 ### Step 2. Install Dependencies
@@ -57,7 +57,7 @@ You need a directory to save all dependencies, say `./dependencies`
 
 ```shell
 tmux # We need and only support tmux for now
-export LLVM_AUTOFIX_DEPS_DIR=./dependencies
+export LLVM_HARNESS_DEPS_DIR=./dependencies
 ./scripts/install.sh
 ```
 

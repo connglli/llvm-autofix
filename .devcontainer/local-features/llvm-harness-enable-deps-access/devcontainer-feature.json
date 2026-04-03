@@ -1,0 +1,15 @@
+{
+  "id": "llvm-harness-enable-deps-access",
+  "name": "LLVM-Harness Dependency-Access Enabler",
+  "version": "0.0.1",
+  "options": {
+    "username": {
+      "type": "string",
+      "default": "",
+      "description": "The user to grant permission for accessing llvm-harness's dependencies"
+    }
+  },
+  "installsAfter": [
+    "./local-features/llvm-harness-install-deps"
+  ]
+}

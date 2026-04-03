@@ -49,7 +49,7 @@ from autofix.utils.console import get_boxed_console
 
 _PROMPTS = yaml.safe_load(
   Path(
-    os.path.join(os.environ.get("LLVM_AUTOFIX_HOME_DIR", "."), "autofix", "mini.yaml")
+    os.path.join(os.environ.get("LLVM_HARNESS_HOME_DIR", "."), "autofix", "mini.yaml")
   ).read_text()
 )["prompts"]
 PROMPT_REASON = _PROMPTS["reason"]
@@ -806,8 +806,8 @@ def parse_args():
 
 
 def main():
-  if os.environ.get("LLVM_AUTOFIX_HOME_DIR") is None:
-    panic("The llvm-autofix environment has not been brought up.")
+  if os.environ.get("LLVM_HARNESS_HOME_DIR") is None:
+    panic("The llvm-harness environment has not been brought up.")
 
   args = parse_args()
 
@@ -852,7 +852,7 @@ def main():
     args.issue,
     base_model_knowledge_cutoff="2023-12-31Z",
     additional_cmake_args=ADDITIONAL_CMAKE_FLAGS,
-    max_build_jobs=os.environ.get("LLVM_AUTOFIX_MAX_BUILD_JOBS"),
+    max_build_jobs=os.environ.get("LLVM_HARNESS_MAX_BUILD_JOBS"),
     use_entire_regression_test_suite=args.aggressive_testing,
   )
 

@@ -1,6 +1,6 @@
-# llvm-autofix
+# llvm-harness
 
-llvm-autofix is an agentic harness of [LLVM](https://github.com/llvm/llvm-project). Its current focus is automatic repair of LLVM bugs and systematic evaluation of agents' ability to resolve LLVM issues. **Longer term, it aims to become an off‑the‑shelf agentic harness for all LLVM tasks that benefit from an agent**. It includes:
+llvm-harness is an agentic harness of [LLVM](https://github.com/llvm/llvm-project). Its current focus is automatic repair of LLVM bugs and systematic evaluation of agents' ability to resolve LLVM issues. **Longer term, it aims to become an off‑the‑shelf agentic harness for all LLVM tasks that benefit from an agent**. It includes:
 
 + [llvm tools](./autofix/tools): A collection of agent-friendly LLVM tool wrappers for agents.
 + [llvm skills](./autofix/skills): A collection of LLVM domain knowledge built into agent skills.
@@ -9,11 +9,12 @@ llvm-autofix is an agentic harness of [LLVM](https://github.com/llvm/llvm-projec
 
 ## 🔥 News
 
+- 2026-04-03: We started refactoring of the project and plan to rename it to `llvm-harness`.
 - 2026-03-20: We released `llvm-autofix`, an agentic harness for real-world compilers.
 
 ## 🗺️ Overview
 
-Agents are being increasingly applied to real-world software engineering tasks, but their performance on complex, real-world codebases remains underexplored. With `llvm-autofix`, our evaluation of frontier models, including GPT‑5, Gemini 2.5 Pro, DeepSeek V3.2, and Qwen 3 Max, highlights several findings:
+Agents are being increasingly applied to real-world software engineering tasks, but their performance on complex, real-world codebases remains underexplored. With `llvm-harness`, our evaluation of frontier models, including GPT‑5, Gemini 2.5 Pro, DeepSeek V3.2, and Qwen 3 Max, highlights several findings:
 
 1. Although these models perform well on general SWE-bench Verified, they struggle on `llvm-bench live`: ~60% vs. ~38%.
 2. `llvm-autofix-mini` outperforms `mini-SWE-agent`, achieving ~52%.
@@ -26,9 +27,9 @@ Agents are being increasingly applied to real-world software engineering tasks, 
 The simplest way is using docker after editing `environments` and fill in the API keys:
 
 ```bash
-docker build -t llvm-autofix-base:latest -f .devcontainer/Dockerfile .
-docker build -t llvm-autofix:latest -f Dockerfile --build-arg USER_UID=$(id -u) --build-arg USER_GID=$(id -g) .
-docker run --rm -it -v $(pwd):/llvm-autofix --cap-add=SYS_PTRACE --security-opt seccomp=unconfined llvm-autofix:latest
+docker build -t llvm-harness-base:latest -f .devcontainer/Dockerfile .
+docker build -t llvm-harness:latest -f Dockerfile --build-arg USER_UID=$(id -u) --build-arg USER_GID=$(id -g) .
+docker run --rm -it -v $(pwd):/llvm-harness --cap-add=SYS_PTRACE --security-opt seccomp=unconfined llvm-harness:latest
 # tmux # Optional: spawn a tmux session if you want to see GDB's output.
 source ./scripts/upenv.sh
 ```
@@ -74,7 +75,7 @@ Please read guidelines in [CONTRIBUTORS.md](./CONTRIBUTORS.md).
 If you found this work helpful, please consider citing our work:
 
 ```bibtex
-@misc{llvm-autofix,
+@misc{llvm-harness,
   title={Agentic Harness for Real-World Compilers},
   author={Yingwei Zheng and Cong Li and Shaohua Li and Yuqun Zhang and Zhendong Su},
   year={2026},
