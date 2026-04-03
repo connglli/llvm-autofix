@@ -36,7 +36,7 @@ from harness.tools.llvm_debug import DebugTool
 from harness.tools.llvm_docs import DocsTool
 from harness.tools.llvm_eval import EvalTool
 from harness.tools.llvm_langref import LangRefTool
-from harness.tools.llvm_mixins import LlvmDirMixin
+from harness.tools.llvm_mixins import LlvmSourceMixin
 from harness.tools.llvm_preview import PreviewTool
 from harness.tools.llvm_reset import ResetTool
 from harness.tools.llvm_test import TestTool
@@ -372,7 +372,7 @@ def patch_and_fix(
   )
 
 
-class ReportRootCauseTool(FuncToolBase, LlvmDirMixin):
+class ReportRootCauseTool(FuncToolBase, LlvmSourceMixin):
   def __init__(self, llvm_dir: str, min_edit_point_lines: int):
     self.llvm_dir = Path(llvm_dir).resolve().absolute()
     self.min_edit_point_lines = min_edit_point_lines
