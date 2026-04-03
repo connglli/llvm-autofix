@@ -127,6 +127,19 @@ def load_skill(path: Path) -> Skill:
       )
     )
 
+  # If no parameters are defined, add a default "argument" parameter
+  # This follows Claude's convention for Skills without explicit parameters
+  if not params:
+    params.append(
+      FuncToolSpec.Param(
+        name="argument",
+        type="string",
+        req=False,
+        desc="Input for the skill to know.",
+      )
+    )
+    body += "\n\n# Arguments\n\n{{ argument }}"
+
   # Discover references and scripts from subdirectories
   references = []
   refs_dir = skill_dir / "references"
