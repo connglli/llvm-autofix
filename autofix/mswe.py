@@ -21,7 +21,10 @@ from minisweagent.run.utils.save import save_traj
 from autofix.mini import (
   ADDITIONAL_CMAKE_FLAGS,
   AGENT_MAX_CHAT_ROUNDS,
+  AGENT_MAX_COMPLETION_TOKENS,
   AGENT_MAX_CONSUMED_TOKENS,
+  AGENT_TEMPERATURE,
+  AGENT_TOP_P,
   MAX_TCS_EDIT_AND_TEST,
   NoAvailablePatchFound,
   ReachToolBudget,
@@ -58,9 +61,9 @@ class MyModel(LitellmModel):
         "custom_llm_provider": provider,
         "api_base": os.environ.get("LLVM_HARNESS_LM_API_ENDPOINT"),
         "api_key": os.environ.get("LLVM_HARNESS_LM_API_KEY"),
-        "temperature": 0,
-        "top_p": 0.95,
-        "max_completion_tokens": 4096,
+        "temperature": AGENT_TEMPERATURE,
+        "top_p": AGENT_TOP_P,
+        "max_completion_tokens": AGENT_MAX_COMPLETION_TOKENS,
         "drop_params": True,
       },
       cost_tracking="ignore_errors",  # Ignore cost tracking errors, we have our own
