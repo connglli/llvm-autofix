@@ -47,7 +47,43 @@ AGENT_MAX_CONSUMED_TOKENS = 5_000_000
 MAX_TCS_GET_CONTEXT = 250
 MAX_TCS_EDIT_AND_TEST = 25
 MIN_EDIT_POINT_LINES = 1
-
+# Enabled tools and their categories
+ENABLED_REASON_TOOLS = {
+  # Explore codebase tools
+  "list",
+  "read",
+  "find",
+  "ripgrep",
+  "code",
+  # Documentation tools
+  "docs",
+  "langref",
+  # Debugging tools
+  "debug",
+  "eval",
+  # Report tool to finish the analysis
+  "report",
+}
+ENABLED_REPAIR_TOOLS = {
+  # Exlore codebase tools
+  "list",
+  "read",
+  "find",
+  "ripgrep",
+  "code",
+  # Documentation tools
+  "docs",
+  "langref",
+  # Edit tools
+  "edit",
+  # Test tools
+  "reset",
+  "test",
+  "preview",
+}
+ENABLED_TOOLS = ENABLED_REASON_TOOLS | ENABLED_REPAIR_TOOLS
+EDIT_AND_TEST_TOOLS = {"edit", "reset", "test"}
+GET_CONTEXT_TOOLS = ENABLED_TOOLS - EDIT_AND_TEST_TOOLS
 
 # - ================================================
 # - LLVM settings
@@ -265,24 +301,7 @@ def patch_and_fix(
     return True, res  # Continue the process
 
   return agent.run(
-    # TODO: Remove the hardcoded tool names
-    [
-      # Exlore codebase tools
-      "list",
-      "read",
-      "find",
-      "ripgrep",
-      "code",
-      # Documentation tools
-      "docs",
-      "langref",
-      # Edit tools
-      "edit",
-      # Test tools
-      "reset",
-      "test",
-      "preview",
-    ],
+    ENABLED_REPAIR_TOOLS,
     response_handler=response_callback,
     tool_call_handler=tool_call_callback,
   )
@@ -434,23 +453,7 @@ def run_mini_agent(
     return False, res  # Stop the process with the result
 
   response = agent.run(
-    # TODO: Remove the hardcoded tool names
-    [
-      # Explore codebase tools
-      "list",
-      "read",
-      "find",
-      "ripgrep",
-      "code",
-      # Documentation tools
-      "docs",
-      "langref",
-      # Debugging tools
-      "debug",
-      "eval",
-      # Report tool to finish the analysis
-      "report",
-    ],
+    ENABLED_REASON_TOOLS,
     response_handler=response_handler,
     tool_call_handler=tool_call_handler,
   )
@@ -601,20 +604,19 @@ def run_opt(
 
 
 def get_tool_list(harness: Harness):
-  """Build the full tool list for the mini agent.
-
-  Starts with harness-provided tools (including debugger tools when attached)
-  and adds the agent-specific report tool.
-  """
   tools: list[tuple[FuncToolBase, int]] = []
 
   # Harness-provided tools: source-tree, build, env, and debugger tools.
   for tool in harness.make_tools():
     name = tool.name()
-    if name in ("edit", "write", "reset", "test", "preview"):
+    if name not in ENABLED_TOOLS:
+      continue
+    if name in EDIT_AND_TEST_TOOLS:
       tools.append((tool, MAX_TCS_EDIT_AND_TEST))
-    else:
+    elif name in GET_CONTEXT_TOOLS:
       tools.append((tool, MAX_TCS_GET_CONTEXT))
+    else:
+      panic(f"Tool {name} does not have a defined tool call limit.")
 
   # Agent-specific: report tool.
   tools.append(
