@@ -88,8 +88,8 @@ class MyModel(LitellmModel):
       model_name=model,
       model_kwargs={
         "custom_llm_provider": provider,
-        "api_base": os.environ.get("LLVM_AUTOFIX_LM_API_ENDPOINT"),
-        "api_key": os.environ.get("LLVM_AUTOFIX_LM_API_KEY"),
+        "api_base": os.environ.get("LLVM_HARNESS_LM_API_ENDPOINT"),
+        "api_key": os.environ.get("LLVM_HARNESS_LM_API_KEY"),
         "temperature": 0,
         "top_p": 0.95,
         "max_completion_tokens": 4096,
@@ -179,7 +179,7 @@ class MyAgent(DefaultAgent):
       # IMPORTANT: Configurations except for `agent` should be configured programmatically.
       **yaml.safe_load(
         Path(
-          os.path.join(os.environ.get("LLVM_AUTOFIX_HOME_DIR"), "autofix", "mswe.yaml")
+          os.path.join(os.environ.get("LLVM_HARNESS_HOME_DIR"), "autofix", "mswe.yaml")
         ).read_text()
       )["agent"],
     )
@@ -198,7 +198,7 @@ class MyAgent(DefaultAgent):
       issue,
       base_model_knowledge_cutoff="2023-12-31Z",
       additional_cmake_args=ADDITIONAL_CMAKE_FLAGS,
-      max_build_jobs=os.environ.get("LLVM_AUTOFIX_MAX_BUILD_JOBS"),
+      max_build_jobs=os.environ.get("LLVM_HARNESS_MAX_BUILD_JOBS"),
       use_entire_regression_test_suite=aggressive_testing,
     )
     bug_type = self.fixenv.get_bug_type()
@@ -348,8 +348,8 @@ def parse_args():
 
 
 def main():
-  if os.environ.get("LLVM_AUTOFIX_HOME_DIR") is None:
-    panic("The llvm-autofix environment has not been brought up.")
+  if os.environ.get("LLVM_HARNESS_HOME_DIR") is None:
+    panic("The llvm-harness environment has not been brought up.")
 
   args = parse_args()
 

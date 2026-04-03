@@ -32,8 +32,8 @@ class GPTGenericAgent(GenericAgent):
     )
     if self.reasoning_effort == "NOT_GIVEN":
       self.reasoning_effort = NOT_GIVEN
-    api_key = os.environ.get("LLVM_AUTOFIX_LM_API_KEY")
-    base_url = os.environ.get("LLVM_AUTOFIX_LM_API_ENDPOINT") or None
+    api_key = os.environ.get("LLVM_HARNESS_LM_API_KEY")
+    base_url = os.environ.get("LLVM_HARNESS_LM_API_ENDPOINT") or None
     self.client = OpenAI(api_key=api_key, base_url=base_url)
 
   def _complete_chat(self, messages: List[Dict]) -> Tuple[str, str]:

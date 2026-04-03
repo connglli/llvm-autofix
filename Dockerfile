@@ -1,6 +1,6 @@
-FROM llvm-autofix-base:latest
+FROM llvm-harness-base:latest
 
-ARG USERNAME=autofix
+ARG USERNAME=harness
 ARG USER_UID
 ARG USER_GID
 
@@ -15,12 +15,12 @@ USER $USERNAME
 ENV SHELL=/bin/zsh
 
 RUN sh -c "$(curl -fsSL https://raw.githubusercontent.com/ohmyzsh/ohmyzsh/master/tools/install.sh)" \
-    && sudo mkdir -p $LLVM_AUTOFIX_DEPS_DIR \
-    && sudo chown $USERNAME:$USERNAME $LLVM_AUTOFIX_DEPS_DIR \
-    && $LLVM_AUTOFIX_INSTALL_SCRIPT_DIR/install.sh \
-    && sudo rm -rf $LLVM_AUTOFIX_INSTALL_SCRIPT_DIR
+    && sudo mkdir -p $LLVM_HARNESS_DEPS_DIR \
+    && sudo chown $USERNAME:$USERNAME $LLVM_HARNESS_DEPS_DIR \
+    && $LLVM_HARNESS_INSTALL_SCRIPT_DIR/install.sh \
+    && sudo rm -rf $LLVM_HARNESS_INSTALL_SCRIPT_DIR
 
-VOLUME ["/llvm-autofix"]
-WORKDIR /llvm-autofix
+VOLUME ["/llvm-harness"]
+WORKDIR /llvm-harness
 
 ENTRYPOINT [ "/bin/zsh" ]

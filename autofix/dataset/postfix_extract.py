@@ -10,8 +10,8 @@ from unidiff import PatchSet
 import autofix.dataset.hints as hints
 import autofix.llvm.llvm_helper as llvm_helper
 
-if os.environ.get("LLVM_AUTOFIX_HOME_DIR") is None:
-  print("Error: The llvm-autofix environment has not been brought up.")
+if os.environ.get("LLVM_HARNESS_HOME_DIR") is None:
+  print("Error: The llvm-harness environment has not been brought up.")
   exit(1)
 
 github_token = os.environ.get("LAB_GITHUB_TOKEN")

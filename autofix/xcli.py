@@ -27,7 +27,7 @@ from autofix.utils import cmdline
 _TEST_SERVER_ADDR = "127.0.0.1"
 _TEST_SERVER_PORT = 3921
 
-LLVM_AUTOFIX_HOME_DIR = os.environ.get("LLVM_AUTOFIX_HOME_DIR")
+LLVM_HARNESS_HOME_DIR = os.environ.get("LLVM_HARNESS_HOME_DIR")
 
 PROMPT_TEMPLATE = """You are an expert LLVM developer. Please solve this LLVM issue:
 
@@ -212,7 +212,7 @@ def save_xcli_trajectory(
     json.dump(sum_dict, fou, indent=2)
 
   # Find and save the trajectory
-  proj_name = "-".join(str(Path(LLVM_AUTOFIX_HOME_DIR).resolve().absolute()).split("/"))
+  proj_name = "-".join(str(Path(LLVM_HARNESS_HOME_DIR).resolve().absolute()).split("/"))
   # Trajectory of CC is saved at:
   # - ~/.claude/projects/{proj_name}/{session} or
   # ~/.claude/projects/{proj_name}/{session}.jsonl
@@ -234,7 +234,7 @@ def save_xcli_trajectory(
 
 
 def main():
-  if LLVM_AUTOFIX_HOME_DIR is None:
+  if LLVM_HARNESS_HOME_DIR is None:
     panic("The llvm-autofix environment has not been brought up.")
 
   args = parse_args()
@@ -252,7 +252,7 @@ def main():
     issue,
     base_model_knowledge_cutoff="2023-12-31Z",
     additional_cmake_args=ADDITIONAL_CMAKE_FLAGS,
-    max_build_jobs=os.environ.get("LLVM_AUTOFIX_MAX_BUILD_JOBS"),
+    max_build_jobs=os.environ.get("LLVM_HARNESS_MAX_BUILD_JOBS"),
     use_entire_regression_test_suite=args.aggressive_testing,
   )
   fixenv.reset()

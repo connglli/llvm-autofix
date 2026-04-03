@@ -1,16 +1,16 @@
 #! /bin/bash
 
 # Check if our environment is set up or not
-if [ -z "$LLVM_AUTOFIX_HOME_DIR" ]; then
-    echo "Error: The llvm-autofix environment has not been brought up."
+if [ -z "$LLVM_HARNESS_HOME_DIR" ]; then
+    echo "Error: The llvm-harness environment has not been brought up."
     exit 1
 fi
 
 # We run everything from the home directory
 USER_WORKING_DIR=$(pwd)
-cd $LLVM_AUTOFIX_HOME_DIR
+cd $LLVM_HARNESS_HOME_DIR
 
-BENCH_DIR=$LLVM_AUTOFIX_HOME_DIR/bench
+BENCH_DIR=$LLVM_HARNESS_HOME_DIR/bench
 
 show_usage() {
     echo "Usage: $0 -B <bench_name> [-A <agent_name>] [-m <model_name>] [-D <model_driver>] [-o <logs_dir>] [-R] [-C] [-h]"
@@ -291,7 +291,7 @@ for issue in "${ISSUE_LIST[@]}"; do
         ((failure_count++))
     fi
 
-    rm -rf "$LLVM_AUTOFIX_HOME_DIR"/core.* >/dev/null 2>&1
+    rm -rf "$LLVM_HARNESS_HOME_DIR"/core.* >/dev/null 2>&1
     if [ "$CLEAN_FLAG" = "1" ]; then
       # Clean up build directories to save space
       rm -rf "$LAB_LLVM_BUILD_DIR/$issue" >/dev/null 2>&1

@@ -5,13 +5,13 @@ set -e
 set -x
 
 #-=============================================================================
-# This script is used to install the dependencies of llvm-autofix.
+# This script is used to install the dependencies of llvm-harness.
 #
 # - LLVM: https://github.com/llvm/llvm-project
 # - alive2: https://github.com/AliveToolkit/alive2
 # - Required python dependencies: requirements.txt
 #
-# All the dependencies will be downloaded into the $LLVM_AUTOFIX_DEPS_DIR
+# All the dependencies will be downloaded into the $LLVM_HARNESS_DEPS_DIR
 # directory and install into the system. Therefore, this script requires
 # the root permission When necessary, the source code will be kept.
 #
@@ -31,8 +31,8 @@ fi
 
 mkdir ${DEP_LLVM_DIR}
 git clone https://github.com/llvm/llvm-project ${DEP_LLVM_SOURCE_DIR}
-git -C ${DEP_LLVM_SOURCE_DIR} config user.name "llvm-autofix"
-git -C ${DEP_LLVM_SOURCE_DIR} config user.email "llvm-autofix@example.org"
+git -C ${DEP_LLVM_SOURCE_DIR} config user.name "llvm-harness"
+git -C ${DEP_LLVM_SOURCE_DIR} config user.email "llvm-harness@example.org"
 git -C ${DEP_LLVM_SOURCE_DIR} checkout ${DEP_LLVM_VERSION} # We will reuse the repo for the repair task later.
 cmake -S ${DEP_LLVM_SOURCE_DIR}/llvm -B ${DEP_LLVM_BUILD_DIR} -G Ninja \
   -DCMAKE_BUILD_TYPE=Release \

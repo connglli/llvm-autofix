@@ -25,19 +25,17 @@ RUN export DEBIAN_FRONTEND=noninteractive \
         vim \
         tmux \
         zstd \
-    # We use Ollama for development and testing.
-    && curl -fsSL https://ollama.com/install.sh | sh \
     && apt autoremove -y && apt clean -y \
     && rm -rf /var/lib/apt/lists/*
 
 # Specify the directory that we'd like to install our dependencies to.
 # Note, avoid using home directory as it will make the updating of UID/GID quite slow.
-ENV LLVM_AUTOFIX_DEPS_DIR=/llvm-autofix-deps
+ENV LLVM_HARNESS_DEPS_DIR=/llvm-harness-deps
 
 # Install the dependency installation scripts.
-# This will be used by our local feature llvm-autofix-install-deps and the top-level Dockerfile.
-ENV LLVM_AUTOFIX_INSTALL_SCRIPT_DIR=/llvm-autofix-install-scripts
-COPY scripts /llvm-autofix-install-scripts
+# This will be used by our local feature llvm-harness-install-deps and the top-level Dockerfile.
+ENV LLVM_HARNESS_INSTALL_SCRIPT_DIR=/llvm-harness-install-scripts
+COPY scripts /llvm-harness-install-scripts
 
 ENV DOCKER_BUILDKIT=1
 

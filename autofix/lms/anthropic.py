@@ -47,8 +47,8 @@ class ClaudeAgent(AgentBase):
       self.thinking = "disabled"
     else:
       self.thinking = "adaptive"
-    api_key = os.environ.get("LLVM_AUTOFIX_LM_API_KEY")
-    base_url = os.environ.get("LLVM_AUTOFIX_LM_API_ENDPOINT") or None
+    api_key = os.environ.get("LLVM_HARNESS_LM_API_KEY")
+    base_url = os.environ.get("LLVM_HARNESS_LM_API_ENDPOINT") or None
     self.client = Anthropic(api_key=api_key, base_url=base_url)
 
   def run(
