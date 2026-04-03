@@ -1,12 +1,10 @@
-from pathlib import Path
-
+from harness.llvm.access import AccessControl
 from harness.lms.tool import FuncToolBase, FuncToolCallException, FuncToolSpec
-from harness.tools.llvm_mixins import LlvmSourceMixin
 
 
-class EditTool(FuncToolBase, LlvmSourceMixin):
-  def __init__(self, llvm_dir: str):
-    self.llvm_dir = Path(llvm_dir).resolve().absolute()
+class EditTool(FuncToolBase):
+  def __init__(self, acl: AccessControl):
+    self.acl = acl
 
   def spec(self) -> FuncToolSpec:
     return FuncToolSpec(
@@ -27,7 +25,7 @@ class EditTool(FuncToolBase, LlvmSourceMixin):
     )
 
   def _call(self, *, file: str, old: str, new: str, **kwargs) -> str:
-    full_path = self.check_llvm_file(file)
+    full_path = self.acl.check_editable_file(file)
     content = full_path.read_text(encoding="utf-8")
     if old not in content:
       raise FuncToolCallException("The `old` text is not found in file.")

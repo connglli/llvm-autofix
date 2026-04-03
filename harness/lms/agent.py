@@ -10,7 +10,7 @@ from tenacity import (
   wait_random_exponential,
 )  # for exponential backoff
 
-from harness.llvm.llvm_helper import remove_path_from_output
+from harness.llvm.intern.llvm import remove_path_from_output
 from harness.lms.skill import SkillTool, load_skill
 from harness.lms.tool import FuncToolBase, ToolRegistry
 from harness.utils.console import get_boxed_console

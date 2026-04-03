@@ -2,13 +2,13 @@ import re
 from pathlib import Path
 
 from harness.llvm.debugger import DebuggerBase
-from harness.llvm.llvm import LLVM
+from harness.llvm.intern.llvm_code import LlvmCode
 from harness.lms.tool import FuncToolBase, FuncToolCallException, FuncToolSpec
 
 
 # TODO: There is a chance that a function is excessively long
 class CodeTool(FuncToolBase):
-  def __init__(self, llvm: LLVM, debugger: DebuggerBase):
+  def __init__(self, llvm: LlvmCode, debugger: DebuggerBase):
     self.llvm = llvm
     self.debugger = debugger
     self.pattern = re.compile('Line (\\d+) of "([^"]+)" starts at')
@@ -29,7 +29,9 @@ class CodeTool(FuncToolBase):
       match = re.search(self.pattern, res)
       if match:
         return self.llvm.render_func_code(
-          func, int(match.group(1)), Path(match.group(2)).relative_to(self.llvm.repo)
+          func,
+          int(match.group(1)),
+          Path(match.group(2)).relative_to(self.llvm.llvm_dir),
         ).render()
       return "Unavailable"
     except Exception as e:

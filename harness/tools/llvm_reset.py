@@ -1,12 +1,12 @@
 import subprocess
 
-from harness.llvm.llvm_helper import decode_output
+from harness.llvm.access import AccessControl
 from harness.lms.tool import FuncToolBase, FuncToolCallException, FuncToolSpec
 
 
 class ResetTool(FuncToolBase):
-  def __init__(self, llvm_dir: str, base_commit: str):
-    self.llvm_dir = llvm_dir
+  def __init__(self, acl: AccessControl, base_commit: str):
+    self.acl = acl
     self.base_commit = base_commit
 
   def spec(self) -> FuncToolSpec:
@@ -24,18 +24,19 @@ class ResetTool(FuncToolBase):
     )
 
   def _call(self, *, file: str, **kwargs) -> str:
+    self.acl.check_editable(file)
     try:
       subprocess.check_call(
         ["git", "checkout", self.base_commit, file],
-        cwd=self.llvm_dir,
+        cwd=self.acl.root,
       )
     except subprocess.CalledProcessError as e:
       raise FuncToolCallException(
         f"Failed to checkout {file}: "
         + str(e)
         + "\n"
-        + decode_output(e.output)
+        + (e.output.decode() if e.output else "")
         + "\n"
-        + decode_output(e.stderr),
+        + (e.stderr.decode() if e.stderr else ""),
       )
     return f"Checked out {file} from commit {self.base_commit}."

@@ -43,7 +43,7 @@ Avoid mentioning implementation details (binary names, internal paths) unless th
 ## Naming Conventions
 
 ### File names
-- Generic tools (file I/O, search, shell): plain name, e.g. `read.py`, `grep.py`.
+- Generic tools (file I/O, search, shell): plain name, e.g. `edit.py`, `bash.py`.
 - LLVM-specific tools: `llvm_` prefix, e.g. `llvm_debug.py`, `llvm_opt.py`.
 
 ### Tool names (exposed to the agent)
@@ -54,7 +54,28 @@ Avoid mentioning implementation details (binary names, internal paths) unless th
 ### Class names
 - `PascalCase` with a `Tool` suffix, e.g. `OptimizeIrTool`, `DebugTool`.
 
-## LLVM Build Directory Tools
+## Access Control
+
+Tools that read or write files in the LLVM source tree take an `AccessControl` instance (from `harness.llvm.access`). Use it to validate paths before operating:
+
+```python
+from harness.llvm.access import AccessControl
+
+
+class MyTool(FuncToolBase):
+  def __init__(self, acl: AccessControl):
+    self.acl = acl
+
+  def _call(self, *, file: str, **kwargs) -> str:
+    full_path = self.acl.check_readable_file(file)   # read-only
+    # or
+    full_path = self.acl.check_editable_file(file)   # read-write
+    ...
+```
+
+`AccessControl` enforces configurable editable/readable/ignored path patterns (fnmatch wildcards supported) and prevents path traversal outside the workspace root.
+
+## Tools Using LLVM Builds
 
 Tools that invoke binaries from an LLVM build directory should inherit `LlvmBuildDirMixin`:
 
@@ -70,21 +91,6 @@ class MyLlvmTool(LlvmBuildDirMixin, FuncToolBase):
 
 `LlvmBuildDirMixin` requires a completed LLVM build and validates the build directory at construction time.
 
-## LLVM Source Directory Tools
-
-Tools that operate on files within the LLVM source tree should inherit `LlvmSourceMixin`:
-
-```python
-from harness.tools.llvm_mixins import LlvmSourceMixin
-
-
-class MyLlvmTool(LlvmSourceMixin, FuncToolBase):
-  def __init__(self, llvm_dir: str):
-    self.llvm_dir = Path(llvm_dir).resolve()
-```
-
-`LlvmSourceMixin` provides `check_llvm_file(path)` and `check_llvm_dir(path)`, which validate that a given path is inside the `llvm/` subdirectory and exists. Use these to sanitize file/directory arguments from the agent before operating on them.
-
 ## Registering Tools
 
-Unlike skills, tools must be registered with the agent manually at runtime to be callable.
+Tools are registered with the harness at runtime. See `Harness.make_tools()` for the current registration logic.

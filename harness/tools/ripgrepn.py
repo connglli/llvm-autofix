@@ -1,13 +1,13 @@
-from pathlib import Path
 from subprocess import CalledProcessError
 
+from harness.llvm.access import AccessControl
 from harness.lms.tool import FuncToolBase, FuncToolCallException, FuncToolSpec
 from harness.utils import cmdline
 
 
 class RipgrepNTool(FuncToolBase):
-  def __init__(self, llvm_dir: str, n: int):
-    self.llvm_dir = Path(llvm_dir).resolve().absolute()
+  def __init__(self, acl: AccessControl, n: int = 250):
+    self.acl = acl
     self.n = n
 
   def spec(self) -> FuncToolSpec:
@@ -40,7 +40,7 @@ class RipgrepNTool(FuncToolBase):
         "No arguments provided. Please specify the pattern and files to search."
       )
     try:
-      result = cmdline.check_output(f"rg {args}", cwd=self.llvm_dir)
+      result = cmdline.check_output(f"rg {args}", cwd=self.acl.root)
       lines = result.decode("utf-8").strip().splitlines(keepends=True)
     except CalledProcessError as e:
       if e.returncode == 1:

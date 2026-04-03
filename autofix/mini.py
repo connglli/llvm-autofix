@@ -4,44 +4,18 @@ import time
 from argparse import ArgumentParser
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
-from tempfile import NamedTemporaryFile
 from typing import List, Optional, Tuple
 
 import yaml
 
+from harness.llvm import (
+  AccessControl,
+  Harness,
+  Reproducer,
+)
 from harness.llvm.debugger import DebuggerBase, StackTrace
-from harness.llvm.gdb_support import GDB
-from harness.llvm.lab_env import Environment
-from harness.llvm.llvm import LLVM, Code, CodeSnippet
-from harness.llvm.llvm_helper import (
-  get_first_failed_test,
-  get_llvm_build_dir,
-  git_execute,
-  llvm_dir,
-  pretty_render_log,
-  remove_path_from_output,
-  set_llvm_build_dir,
-)
-from harness.llvm.llvm_helper import (
-  reset as reset_llvm,
-)
 from harness.lms.agent import AgentBase
 from harness.lms.tool import FuncToolBase, FuncToolCallException, FuncToolSpec
-from harness.skills import list_skills as get_skill_list
-from harness.tools.edit import EditTool
-from harness.tools.findn import FindNTool
-from harness.tools.listn import ListNTool
-from harness.tools.llvm_code import CodeTool
-from harness.tools.llvm_debug import DebugTool
-from harness.tools.llvm_docs import DocsTool
-from harness.tools.llvm_eval import EvalTool
-from harness.tools.llvm_langref import LangRefTool
-from harness.tools.llvm_mixins import LlvmSourceMixin
-from harness.tools.llvm_preview import PreviewTool
-from harness.tools.llvm_reset import ResetTool
-from harness.tools.llvm_test import TestTool
-from harness.tools.readn import ReadNTool
-from harness.tools.ripgrepn import RipgrepNTool
 from harness.utils.console import get_boxed_console
 
 # - ===============================================
@@ -200,15 +174,6 @@ class ReachToolBudget(Exception):
 
 
 @dataclass
-class Reproducer:
-  issue_id: str  # The issue ID
-  file_path: Path  # The path to the LLVM IR reproducer file
-  command: List[str]  # The command to run the reproducer
-  symptom: str  # The observed symptom when running the reproducer
-  raw_cmd: str  # The original, unpolished command line to run the reproducer
-
-
-@dataclass
 class PatchEditPoint:
   """A class to represent an edit point in a patch."""
 
@@ -233,40 +198,6 @@ def ensure_tools_available(agent: AgentBase, tools: List[str]):
     raise ReachToolBudget(f"Tools [{', '.join(unavailable_tools)}] are out of budget.")
 
 
-def extract_code_snippet(
-  commit: str,
-  file_rel_path: Path,
-  file_path: Path,
-  start_line: int,
-  end_line: int,
-  *,
-  sourroundings: int = 0,
-) -> str:
-  if not file_path.exists():
-    raise ValueError(f"File {file_path} does not exist.")
-  git_execute(["checkout", commit, str(file_rel_path)])
-  with file_path.open("r") as f:
-    lines = [""] + f.readlines()
-  if start_line < 1 or end_line < 1:
-    raise ValueError(
-      f"Line numbers {start_line} and {end_line} must be positive integers."
-    )
-  if start_line > end_line:
-    raise ValueError(
-      f"Start line {start_line} cannot be greater than end line {end_line}."
-    )
-  if max(start_line, end_line) >= len(lines):
-    raise ValueError(
-      f"Line numbers {start_line} and {end_line} are out of bounds for file {file_path}"
-    )
-  start_line = max(1, start_line - sourroundings)
-  end_line = min(len(lines) - 1, end_line + sourroundings)
-  code = CodeSnippet()
-  for line in range(start_line, end_line + 1):
-    code.add_line(Code(line, lines[line].rstrip()))
-  return code.render()
-
-
 EDIT_POINT_FORMAT = """\
 ```cpp
 // {file}:{start}-{end}
@@ -281,16 +212,16 @@ def patch_and_fix(
   *,
   rep: Reproducer,
   agent: AgentBase,
-  fixenv: Environment,
-  llvm: LLVM,
+  harness: Harness,
   stats: RunStats,
 ) -> Optional[str]:
+  fixenv = harness.fixenv
   console.print(
     f"Generating patch for edit points: {', '.join([str(ep) for ep in edit_points])} ..."
   )
 
   # Reset the LLVM repo to the base commit
-  git_execute(["checkout", "."])
+  harness.git("checkout", ".")
   agent.clear_history()
 
   # Fix: There're chances that the model proposes incorrect edit points
@@ -302,13 +233,11 @@ def patch_and_fix(
           file=ep.file,
           start=ep.start,
           end=ep.end,
-          code=extract_code_snippet(
-            fixenv.base_commit,
-            ep.file,
-            llvm.repo / ep.file,
+          code=harness.llvmcode.extract_snippet(
+            str(ep.file),
             ep.start,
             ep.end,
-            sourroundings=5,
+            context=5,
           ),
         )
       )
@@ -372,9 +301,9 @@ def patch_and_fix(
   )
 
 
-class ReportRootCauseTool(FuncToolBase, LlvmSourceMixin):
-  def __init__(self, llvm_dir: str, min_edit_point_lines: int):
-    self.llvm_dir = Path(llvm_dir).resolve().absolute()
+class ReportRootCauseTool(FuncToolBase):
+  def __init__(self, acl: AccessControl, min_edit_point_lines: int):
+    self.acl = acl
     self.min_edit_point_lines = min_edit_point_lines
 
   def spec(self) -> FuncToolSpec:
@@ -439,8 +368,9 @@ class ReportRootCauseTool(FuncToolBase, LlvmSourceMixin):
         )
       fixed_edit.append(end_line)
       try:
-        fixed_edit.append(str(self.check_llvm_file(edit[2]).relative_to(self.llvm_dir)))
-      except FuncToolCallException as e:
+        resolved = self.acl.check_readable_file(edit[2])
+        fixed_edit.append(str(resolved.relative_to(self.acl.root)))
+      except Exception as e:
         raise FuncToolCallException(
           f"Invalid file path for detected at edit_points[{ind}]: {edit}. {e}"
         )
@@ -466,9 +396,8 @@ def run_mini_agent(
   backtrace: StackTrace,
   # Agent used
   agent: AgentBase,
-  # LLVM and fix environem
-  fixenv: Environment,
-  llvm: LLVM,
+  # Harness
+  harness: Harness,
   # Statistics
   stats: RunStats,
 ) -> Optional[str]:
@@ -554,7 +483,7 @@ def run_mini_agent(
         continue
       edit_point_file = Path(edit_point_file)
       if edit_point_file.is_absolute():
-        edit_point_file = edit_point_file.relative_to(llvm.repo)
+        edit_point_file = edit_point_file.relative_to(harness.llvm_dir)
       fixed_edit_points.append(
         PatchEditPoint(int(edit_point_start), int(edit_point_end), edit_point_file)
       )
@@ -577,8 +506,7 @@ def run_mini_agent(
     reasoning_thoughts,
     rep=rep,
     agent=agent,
-    fixenv=fixenv,
-    llvm=llvm,
+    harness=harness,
     stats=stats,
   )
 
@@ -596,18 +524,18 @@ def is_interesting_file(filename: str) -> bool:
 
 
 def prepare_debugger(
-  rep: Reproducer, *, llvm: LLVM, fixenv: Environment
+  rep: Reproducer, *, harness: Harness
 ) -> Tuple[DebuggerBase, StackTrace]:
-  debugger = GDB(rep.command)
+  debugger = harness.attach_debugger(rep.command)
 
   # Pause the debugger at the first transformation point or crash point
-  bug_type = fixenv.get_bug_type()
+  bug_type = harness.fixenv.get_bug_type()
   breakpints = (
     ASSERTION_FUNCTION_LIST if bug_type == "crash" else TRANSFORMATION_FUNCTION_LIST
   )
   cached_breakpoint_file = os.path.join(
-    get_llvm_build_dir(), "autofix_breakpoint_cache.txt"
-  )  # We'll cache the breakpoint to speed up future runs
+    str(harness.build_dir), "autofix_breakpoint_cache.txt"
+  )
   cached_breakpoint = None
   if os.path.exists(cached_breakpoint_file):
     with open(cached_breakpoint_file, "r") as fin:
@@ -617,7 +545,7 @@ def prepare_debugger(
       breakpints = [cached_breakpoint]
   console.print("Reproducing the issue with debugger...")
   backtrace, breakpoint = debugger.run(
-    llvm.repo,
+    harness.llvm_dir,
     breakpints,
     bug_type == "miscompilation",
     frame_limit=25,  # 25 frames should be enough
@@ -636,31 +564,38 @@ def prepare_debugger(
   return debugger, backtrace
 
 
-def run_opt(rep: Reproducer, *, llvm: LLVM, fixenv: Environment, backtrace: StackTrace):
+def run_opt(
+  rep: Reproducer,
+  *,
+  harness: Harness,
+  backtrace: StackTrace,
+):
   # We get the transformation pass and its bound analysis passes
-  opt_pass, analy_pass = llvm.resolve_pass_name(" ".join(rep.command))
+  opt_pass, analy_pass = harness.llvmcode.resolve_pass_name(" ".join(rep.command))
   console.print(f"Transform pass: {opt_pass}")
   console.print(f"Analysis passes: {', '.join([str(ap) for ap in analy_pass])}")
 
   # We run opt with the reproducer to collect verbose log
-  opt_args = rep.command[1:] + llvm.resolve_pass_opts(opt_pass)
+  opt_args = rep.command[1:] + harness.llvmcode.resolve_pass_opts(opt_pass)
   for idx in range(len(opt_args)):
     if opt_args[idx].count("-passes="):
       opt_args[idx] = "--passes=" + ",".join(analy_pass + [opt_pass])
   opt_args.remove(str(rep.file_path))
   for ap in analy_pass:
-    opt_args += llvm.resolve_pass_opts(ap)
+    opt_args += harness.llvmcode.resolve_pass_opts(ap)
   opt_args.append(
     "--debug-only="
-    + ",".join(llvm.resolve_debug_types(set([frame.file for frame in backtrace])))
+    + ",".join(
+      harness.llvmcode.resolve_debug_types(set([frame.file for frame in backtrace]))
+    )
   )
 
-  bug_type = fixenv.get_bug_type()
+  bug_type = harness.fixenv.get_bug_type()
 
   console.print("Running opt with the reproducer to collect verbose log ...")
   console.print(f"Options: {opt_args}")
   # TODO: `lli` leverages return code to indicate the success or failure, rather than the output.
-  opt_cmd, opt_log = llvm.run_opt(
+  opt_cmd, opt_log = harness.run_opt(
     rep.file_path,
     opt_args,
     check=bug_type != "crash",
@@ -673,67 +608,60 @@ def run_opt(rep: Reproducer, *, llvm: LLVM, fixenv: Environment, backtrace: Stac
   if bug_type == "crash" and "PLEASE submit a bug report to " in opt_log:
     # Ignore the stack trace from the crash report
     opt_log = opt_log[: opt_log.find("PLEASE submit a bug report to ")]
-  opt_log = remove_path_from_output(opt_log)
+  opt_log = harness.sanitize_output(opt_log)
   console.printb(title="Opt Verbose Log", message=f"$ {opt_cmd}\n{opt_log}")
 
   return opt_pass, opt_cmd, opt_log
 
 
-def get_tool_list(fixenv: Environment, llvm: LLVM, debugger: DebuggerBase):
-  # The list of our tools and their call limits.
-  # TODO: Manage all tools with a ToolRegistry. Don't share budget across agents.
-  return [
-    # General tools
-    (FindNTool(llvm_dir, n=MAX_ROLS_PER_TC), MAX_TCS_GET_CONTEXT),
-    (RipgrepNTool(llvm_dir, n=MAX_ROLS_PER_TC), MAX_TCS_GET_CONTEXT),
-    (ListNTool(llvm_dir, n=MAX_ROLS_PER_TC), MAX_TCS_GET_CONTEXT),
-    (ReadNTool(llvm_dir, n=MAX_ROLS_PER_TC), MAX_TCS_GET_CONTEXT),
-    # FIXME: Redesign the format of the edit tool to avoid the mismatch due to whitespaces
-    (EditTool(llvm_dir), MAX_TCS_EDIT_AND_TEST),
-    # LLVM-specific tools
-    (CodeTool(llvm, debugger), MAX_TCS_GET_CONTEXT),
-    (DocsTool(llvm, debugger), MAX_TCS_GET_CONTEXT),
-    (LangRefTool(fixenv), MAX_TCS_GET_CONTEXT),
-    # (OptTool(llvm), MAX_TCS_GET_CONTEXT),
-    # (Alive2Tool(), MAX_TCS_GET_CONTEXT),
-    (ResetTool(llvm_dir, fixenv.base_commit), MAX_TCS_EDIT_AND_TEST),
-    (PreviewTool(fixenv), MAX_TCS_EDIT_AND_TEST),
-    (TestTool(fixenv, ALLOW_MODIFY_ASSERTS), MAX_TCS_EDIT_AND_TEST),
-    # Debugging tools
-    (DebugTool(debugger), MAX_TCS_GET_CONTEXT),
-    (EvalTool(debugger), MAX_TCS_GET_CONTEXT),
-    # Stop the agent process and report
-    (ReportRootCauseTool(llvm_dir, MIN_EDIT_POINT_LINES), MAX_TCS_GET_CONTEXT),
-  ]
+def get_tool_list(harness: Harness):
+  """Build the full tool list for the mini agent.
+
+  Starts with harness-provided tools (including debugger tools when attached)
+  and adds the agent-specific report tool.
+  """
+  tools: list[tuple[FuncToolBase, int]] = []
+
+  # Harness-provided tools: source-tree, build, env, and debugger tools.
+  for tool in harness.make_tools():
+    name = tool.name()
+    if name in ("edit", "write", "reset", "test", "preview"):
+      tools.append((tool, MAX_TCS_EDIT_AND_TEST))
+    else:
+      tools.append((tool, MAX_TCS_GET_CONTEXT))
+
+  # Agent-specific: report tool.
+  tools.append(
+    (ReportRootCauseTool(harness.acl, MIN_EDIT_POINT_LINES), MAX_TCS_GET_CONTEXT)
+  )
+
+  return tools
 
 
 def autofix(
   rep: Reproducer,
   *,
-  fixenv: Environment,
+  harness: Harness,
   agent: AgentBase,
-  llvm: LLVM,
   stats: RunStats,
 ):
   # We use a debugger to help the agent understand the context
-  debugger, backtrace = prepare_debugger(rep, llvm=llvm, fixenv=fixenv)
+  debugger, backtrace = prepare_debugger(rep, harness=harness)
   stats.trans_point = backtrace[-1].as_tuple()
 
   # Run opt to get the optimization pass and the verbose log of the reproducer's execution
   # These information will help the agent understand the context better
   opt_pass, opt_cmd, opt_log = run_opt(
-    rep, llvm=llvm, fixenv=fixenv, backtrace=backtrace.clone()
+    rep, harness=harness, backtrace=backtrace.clone()
   )
 
   # The list of our tools and their call limits. 0 means allowing unlimited call.
-  # TODO: Manage all tools with a ToolRegistry. Don't share budget across agents.
-  tools = get_tool_list(fixenv, llvm, debugger)
+  tools = get_tool_list(harness)
   for to, th in tools:
     agent.register_tool(to, th)
 
   # Load and register skills as callable tools
-  skills = get_skill_list()
-  for sk in skills:
+  for sk in harness.skills:
     assert (
       "bash" in agent.tools.list() and agent.tools.get_remaining_budget("bash") > 0
     ), "Skills require the bash tool to be enabled"
@@ -748,8 +676,7 @@ def autofix(
     debugger=debugger,
     backtrace=backtrace,
     agent=agent,
-    fixenv=fixenv,
-    llvm=llvm,
+    harness=harness,
     stats=stats,
   )
 
@@ -837,84 +764,28 @@ def main():
     if stats_path.exists():
       panic(f"Stats file {stats_path} already exists.")
 
-  # Set up the LLVM environment
-  set_llvm_build_dir(os.path.join(get_llvm_build_dir(), args.issue))
-  env = Environment(
+  # --- Use Harness for LLVM setup and reproduction ---
+  with Harness.from_issue(
     args.issue,
-    base_model_knowledge_cutoff="2023-12-31Z",
-    additional_cmake_args=ADDITIONAL_CMAKE_FLAGS,
-    max_build_jobs=os.environ.get("LLVM_HARNESS_MAX_BUILD_JOBS"),
-    use_entire_regression_test_suite=args.aggressive_testing,
-  )
+    cmake_args=ADDITIONAL_CMAKE_FLAGS,
+    aggressive_testing=args.aggressive_testing,
+  ) as h:
+    bug_type = h.fixenv.get_bug_type()
+    if bug_type not in ["crash", "miscompilation"]:
+      panic(f"Unsupported bug type: {bug_type}")
 
-  bug_type = env.get_bug_type()
-  if bug_type not in [
-    "crash",
-    "miscompilation",
-  ]:  # We only support crash and miscompilation for now
-    panic(f"Unsupported bug type: {bug_type}")
+    console.print(f"Issue ID: {args.issue}")
+    console.print(f"Issue Type: {bug_type}")
+    console.print(f"Issue Commit: {h.fixenv.get_base_commit()}")
+    console.print(f"Issue Title: {h.fixenv.get_hint_issue()['title']}")
+    console.print(f"Issue Labels: {h.fixenv.get_hint_issue()['labels']}")
 
-  console.print(f"Issue ID: {args.issue}")
-  console.print(f"Issue Type: {bug_type}")
-  console.print(f"Issue Commit: {env.get_base_commit()}")
-  console.print(f"Issue Title: {env.get_hint_issue()['title']}")
-  console.print(f"Issue Labels: {env.get_hint_issue()['labels']}")
-
-  console.print("Checking out the issue's environment ...")
-  try:
-    env.reset()
-  except Exception as e:
-    console.print(
-      f"Warning: Failed to reset HEAD to {env.get_base_commit()}: {e}", color="yellow"
-    )
-    console.print("Sync the repository and try again.", color="yellow")
-    reset_llvm("main")
-    git_execute(["pull", "origin", "main"])
-    try:
-      env.reset()
-    except Exception as e:
-      panic(f"Failed to reset HEAD to {env.get_base_commit()}: {e}")
-
-  console.print("Building LLVM and try reproducing the issue ...")
-  check_failed, check_log = env.check_fast()
-  if check_failed:
-    panic(f"Failed to build or reproduce the issue. Please try again.\n\n{check_log}")
-
-  reprod_data = get_first_failed_test(check_log)
-  reprod_args = reprod_data["args"]
-  reprod_code = reprod_data["body"]
-  reprod_log = pretty_render_log(reprod_data["log"])
-  console.print("Issue reproduced successfully.")
-  console.printb(title="Reproducer", message=reprod_code)
-  console.printb(title="Reproducing Log", message=f"$ {reprod_args}\n{reprod_log}")
-
-  # We successfully set up the environment and reproduce the issue.
-  llvm = LLVM()
-  with NamedTemporaryFile(
-    mode="w", suffix=".ll", prefix="reprod_", delete=not args.debug
-  ) as reprod_file:  # We keep the file for debugging if needed
-    reprod_file.write(reprod_code)
-    reprod_file.flush()
-
-    reproducer = Reproducer(
-      issue_id=args.issue,
-      file_path=Path(reprod_file.name),
-      command=[],
-      symptom=reprod_log,
-      raw_cmd=reprod_args,
-    )
-    reproducer.command = list(
-      filter(
-        lambda x: x != "",
-        reprod_args.replace("< ", " ")
-        .replace("%s", str(reproducer.file_path))
-        .replace("2>&1", "")
-        .replace("'", "")
-        .replace('"', "")
-        .replace("opt", str(llvm.opt), 1)
-        .strip()
-        .split(" "),
-      )
+    console.print("Building LLVM and try reproducing the issue ...")
+    rep = h.reproduce()
+    console.print("Issue reproduced successfully.")
+    console.printb(title="Reproducer", message=rep.source)
+    console.printb(
+      title="Reproducing Log", message=f"$ {rep.raw_command}\n{rep.symptom}"
     )
 
     # Start analyzing and repairing the issue
@@ -922,22 +793,21 @@ def main():
     stats.total_time_sec = time.time()
     try:
       stats.patch = autofix(
-        reproducer,
-        fixenv=env,
+        rep,
+        harness=h,
         agent=agent,
-        llvm=llvm,
         stats=stats,
       )
       if not stats.patch:
         raise NoAvailablePatchFound("All efforts tried yet no available patches found.")
       # Post validation when necessary
-      if not env.use_entire_regression_test_suite:
+      if not h.fixenv.use_entire_regression_test_suite:
         console.print("Post-validating the generated patch ...")
-        env.use_entire_regression_test_suite = True
-        passed, errmsg = env.check_midend()
+        h.fixenv.use_entire_regression_test_suite = True
+        passed, errmsg = h.fixenv.check_midend()
         if passed:
-          passed, errmsg = env.check_regression_diff()
-        env.use_entire_regression_test_suite = False
+          passed, errmsg = h.fixenv.check_regression_diff()
+        h.fixenv.use_entire_regression_test_suite = False
         if not passed:
           stats.patch = None
           console.printb(title="Post-validation", message=errmsg)
@@ -968,7 +838,7 @@ def main():
     console.print(stats.patch)
     console.print("Reference Patch")
     console.print("---------------")
-    console.print(env.get_reference_patch())
+    console.print(h.fixenv.get_reference_patch())
     console.print("Statistics")
     console.print("----------")
     console.print(json.dumps(stats.as_dict(), indent=2))

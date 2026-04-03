@@ -1,9 +1,9 @@
-from harness.llvm.lab_env import Environment
+from harness.llvm.intern.lab_env import FixEnv
 from harness.lms.tool import FuncToolBase, FuncToolCallException, FuncToolSpec
 
 
 class LangRefTool(FuncToolBase):
-  def __init__(self, env: Environment):
+  def __init__(self, env: FixEnv):
     self.env = env
 
   def spec(self) -> FuncToolSpec:

@@ -1,7 +1,6 @@
 import datetime
 import json
 import os
-import re
 import subprocess
 import tempfile
 import time
@@ -9,7 +8,7 @@ from typing import Optional, Union
 
 import dateparser
 
-import harness.llvm.llvm_helper as llvm_helper
+import harness.llvm.intern.llvm as llvm_ops
 
 
 class TimeCompensationGuard:
@@ -26,7 +25,7 @@ class TimeCompensationGuard:
       self.environment.interaction_time_compensation += time.time() - self.start_time
 
 
-class Environment:
+class FixEnv:
   def __init__(
     self,
     issue_id,
@@ -37,7 +36,7 @@ class Environment:
     use_entire_regression_test_suite=False,
     additional_cmake_args=[],
   ):
-    with open(os.path.join(llvm_helper.dataset_dir, f"{issue_id}.json")) as f:
+    with open(os.path.join(llvm_ops.dataset_dir, f"{issue_id}.json")) as f:
       self.data = json.load(f)
     self.base_commit = self.data["base_commit"]
     self.knowledge_cutoff = dateparser.parse(self.data["knowledge_cutoff"])
@@ -78,10 +77,10 @@ class Environment:
 
   def reset(self):
     with TimeCompensationGuard(self):
-      llvm_helper.reset(self.base_commit)
+      llvm_ops.reset(self.base_commit)
 
   def verify_head(self):
-    head = llvm_helper.git_execute(["rev-parse", "HEAD"]).strip()
+    head = llvm_ops.git_execute(["rev-parse", "HEAD"]).strip()
     if head != self.base_commit:
       raise RuntimeError("invalid HEAD")
 
@@ -89,7 +88,7 @@ class Environment:
     with TimeCompensationGuard(self):
       self.build_count += 1
       self.verify_head()
-      res, log = llvm_helper.build(self.max_build_jobs, self.additional_cmake_args)
+      res, log = llvm_ops.build(self.max_build_jobs, self.additional_cmake_args)
       if not res:
         self.build_failure_count += 1
       return res, log
@@ -115,7 +114,7 @@ class Environment:
     }
 
   def dump_patch(self):
-    return llvm_helper.git_execute(
+    return llvm_ops.git_execute(
       ["diff", self.base_commit, "--", "llvm/lib/*", "llvm/include/*"]
     )
 
@@ -128,7 +127,7 @@ class Environment:
       res, reason = self.build()
       if not res:
         return (False, reason)
-      res, log = llvm_helper.verify_test_group(
+      res, log = llvm_ops.verify_test_group(
         repro=False, input=self.data["tests"], type=self.bug_type
       )
       if not res:
@@ -147,7 +146,7 @@ class Environment:
         return (False, reason)
       # If use_entire_regression_test_suite is True, run the entire regression test suite.
       # By default, only run the tests in the specified lit_test_dir to save time.
-      return llvm_helper.verify_lit(
+      return llvm_ops.verify_lit(
         test_commit=self.test_commit,
         dirs=["llvm/test/Transforms", "llvm/test/Analysis"]
         if self.use_entire_regression_test_suite
@@ -176,30 +175,30 @@ class Environment:
       patch = self.dump_patch()
 
       self.reset()
-      llvm_helper.apply(self.data["patch"])
+      llvm_ops.apply_patch(self.data["patch"])
       res, reason = self.build()
       if not res:
         self.reset()
-        llvm_helper.apply(patch)
+        llvm_ops.apply_patch(patch)
         return (False, reason)
 
       tasks = []
       if seeds_dir is None:
-        seeds_dir = os.path.join(llvm_helper.llvm_dir, "llvm", "test")
+        seeds_dir = os.path.join(llvm_ops.llvm_dir, "llvm", "test")
       for r, _, fs in os.walk(seeds_dir):
         for f in fs:
           if f.endswith(".ll"):
             src_path = os.path.join(r, f)
             tasks.append(src_path)
 
-      gold_result = llvm_helper.batch_compute_O3_output(tasks, self.max_test_jobs)
+      gold_result = llvm_ops.batch_compute_O3_output(tasks, self.max_test_jobs)
 
       self.reset()
-      llvm_helper.apply(patch)
+      llvm_ops.apply_patch(patch)
       res, reason = self.build()
       if not res:
         return (False, reason)
-      patch_result = llvm_helper.batch_compute_O3_output(
+      patch_result = llvm_ops.batch_compute_O3_output(
         list(gold_result.keys()), self.max_test_jobs
       )
 
@@ -220,7 +219,7 @@ class Environment:
             try:
               subprocess.check_call(
                 [
-                  os.path.join(llvm_helper.get_llvm_build_dir(), "bin", "llvm-diff"),
+                  os.path.join(llvm_ops.get_llvm_build_dir(), "bin", "llvm-diff"),
                   f_gold.name,
                   f_patch.name,
                 ],
@@ -243,7 +242,7 @@ class Environment:
       res, reason = self.build()
       if not res:
         return (False, reason)
-      res, log = llvm_helper.verify_test_group(
+      res, log = llvm_ops.verify_test_group(
         repro=False, input=self.data["tests"], type=self.bug_type
       )
       if not res:
@@ -251,7 +250,7 @@ class Environment:
       self.fast_check_pass = True
       # If use_entire_regression_test_suite is True, run the entire regression test suite.
       # By default, only run the tests in the specified lit_test_dir to save time.
-      res, log = llvm_helper.verify_lit(
+      res, log = llvm_ops.verify_lit(
         test_commit=self.test_commit,
         dirs=["llvm/test/Transforms", "llvm/test/Analysis"]
         if self.use_entire_regression_test_suite
@@ -303,22 +302,11 @@ class Environment:
     self.use_knowledge("hint:issue", self.knowledge_cutoff)
     return self.data.get("issue")
 
-  def get_ir_keywords(self, ir: str):
-    keywords = set()
-    # instructions
-    instruction_pattern = re.compile(r"%.+ = (\w+) ")
-    for match in re.findall(instruction_pattern, ir):
-      keywords.add(match)
-    # intrinsics
-    intrinsic_pattern = re.compile(r"@(llvm.\w+)\(")
-    for match in re.findall(intrinsic_pattern, ir):
-      keywords.add(match)
-    keywords.discard("call")
-    return keywords
-
   def get_langref_desc(self, keywords):
     self.use_knowledge("llvm/docs/LangRef.rst", self.knowledge_cutoff)
-    return llvm_helper.get_langref_desc(keywords, self.base_commit)
+    from harness.llvm.intern.llvm_code import LlvmCode
+
+    return LlvmCode().parse_langref_desc(keywords)
 
   # NOTE: It is not a hint.
   def is_single_func_fix(self):
