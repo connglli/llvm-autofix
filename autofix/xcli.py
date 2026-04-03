@@ -21,7 +21,7 @@ from harness.llvm.llvm_helper import (
   set_llvm_build_dir,
 )
 from harness.lms.tool import FuncToolCallException
-from harness.tools.test import TestTool
+from harness.tools.llvm_test import TestTool
 from harness.utils import cmdline
 
 _TEST_SERVER_ADDR = "127.0.0.1"
