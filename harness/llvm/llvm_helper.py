@@ -9,6 +9,21 @@ from typing import Dict, List
 from harness.utils import cmdline
 
 llvm_dir = os.environ["LAB_LLVM_DIR"]
+
+_OPT_CRASH_INDICATORS = [
+  "LLVM ERROR",
+  "compilation aborted",
+  "Stack dump:",
+  "Broken module found",
+  "does not dominate all uses",
+  "PLEASE submit a bug report",
+]
+
+
+def is_opt_crash(msg: str) -> bool:
+  return any(indicator in msg for indicator in _OPT_CRASH_INDICATORS)
+
+
 __llvm_build_dir = os.environ["LAB_LLVM_BUILD_DIR"]
 llvm_alive_tv = os.environ["LAB_LLVM_ALIVE_TV"]
 dataset_dir = os.environ["LAB_DATASET_DIR"]
