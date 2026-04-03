@@ -31,7 +31,7 @@ docker build -t llvm-harness-base:latest -f .devcontainer/Dockerfile .
 docker build -t llvm-harness:latest -f Dockerfile --build-arg USER_UID=$(id -u) --build-arg USER_GID=$(id -g) .
 docker run --rm -it -v $(pwd):/llvm-harness --cap-add=SYS_PTRACE --security-opt seccomp=unconfined llvm-harness:latest
 # tmux # Optional: spawn a tmux session if you want to see GDB's output.
-source ./scripts/upenv.sh
+source ./buildscripts/upenv.sh
 ```
 
 Or follow [BUILD.md](./docs/BUILD.md) to install required dependencies and bring up the environment locally.

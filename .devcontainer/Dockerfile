@@ -35,7 +35,7 @@ ENV LLVM_HARNESS_DEPS_DIR=/llvm-harness-deps
 # Install the dependency installation scripts.
 # This will be used by our local feature llvm-harness-install-deps and the top-level Dockerfile.
 ENV LLVM_HARNESS_INSTALL_SCRIPT_DIR=/llvm-harness-install-scripts
-COPY scripts /llvm-harness-install-scripts
+COPY buildscripts /llvm-harness-install-scripts
 
 ENV DOCKER_BUILDKIT=1
 

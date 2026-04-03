@@ -34,7 +34,7 @@ Edit `environments` to fill out all required environment variables and then:
 
 ```shell
 tmux # We need and only support tmux for now
-source ./scripts/upenv.sh
+source ./buildscripts/upenv.sh
 ```
 
 Note that, each time you open a new terminal that does not inherit the global environments of the terminal executing the above command, you should execute the above command again in your new terminal.
@@ -58,7 +58,7 @@ You need a directory to save all dependencies, say `./dependencies`
 ```shell
 tmux # We need and only support tmux for now
 export LLVM_HARNESS_DEPS_DIR=./dependencies
-./scripts/install.sh
+./buildscripts/install.sh
 ```
 
 ### Step 3. Bring Up the Environment
@@ -66,7 +66,7 @@ export LLVM_HARNESS_DEPS_DIR=./dependencies
 Edit `environments` to fill out all required environment variables and then:
 
 ```shell
-source ./scripts/upenv.sh
+source ./buildscripts/upenv.sh
 ```
 
 Note that, each time you open a new terminal that does not inherit the global environments of the terminal executing the above command, you should execute the above command again in your new terminal.
