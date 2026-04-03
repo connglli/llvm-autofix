@@ -1,4 +1,6 @@
+import os
 import sys
+import tempfile
 from abc import abstractmethod
 from dataclasses import dataclass
 from pathlib import Path
@@ -192,11 +194,19 @@ class AgentBase:
 
   def perform_tool_call(self, tool_name: str, tool_args: dict) -> str:
     MAX_TOOL_CALL_OUTPUT_LINES = 500
+    MAX_TOOL_CALL_OUTPUT_CHARS = 15000
     res = remove_path_from_output(self.tools.call(tool_name, **tool_args))
     lines = res.splitlines()
-    if len(lines) > MAX_TOOL_CALL_OUTPUT_LINES:
-      res = "\n".join(lines[:MAX_TOOL_CALL_OUTPUT_LINES])
-      res += f"\n... (truncated, total {len(lines)} lines)"
+    if len(lines) > MAX_TOOL_CALL_OUTPUT_LINES or len(res) > MAX_TOOL_CALL_OUTPUT_CHARS:
+      fd, path = tempfile.mkstemp(suffix=".txt", prefix=f"toolcall_{tool_name}_")
+      try:
+        os.write(fd, res.encode())
+      finally:
+        os.close(fd)
+      half = MAX_TOOL_CALL_OUTPUT_CHARS // 2
+      header = res[:half]
+      footer = res[-half:]
+      res = f"{header}\n...[output truncated, full output saved to {path}]...\n{footer}"
     return res
 
   def _get_remaining_tools_from(self, activated_tools: List[str]) -> List[str]:

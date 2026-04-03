@@ -29,9 +29,8 @@ FORBIDDEN_TOOLS = [
 
 
 class BashTool(FuncToolBase):
-  def __init__(self, acl: AccessControl, max_output_length: int = 4096):
+  def __init__(self, acl: AccessControl):
     self.acl = acl
-    self.max_output_length = max_output_length
 
   def spec(self) -> FuncToolSpec:
     return FuncToolSpec(
@@ -75,14 +74,7 @@ class BashTool(FuncToolBase):
       output = cmdline.getoutput(
         bash_cmd, cwd=self.acl.root, check=True, timeout=timeout
       )
-      output = output.decode("utf-8")
-      # Check the length of the output, if is too long, we retain
-      # the header and footer and truncate the middle part.
-      if len(output) > self.max_output_length:
-        header = output[: self.max_output_length // 2]  # Keep the first half characters
-        footer = output[-self.max_output_length // 2 :]  # Keep the last half characters
-        output = header + "\n...[output truncated]...\n" + footer
-      return output
+      return output.decode("utf-8")
     except CalledProcessError as e:
       # If the command failed, return the combined output and error message.
       error_output = e.stdout.decode("utf-8") if e.stdout else ""
