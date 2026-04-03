@@ -1,10 +1,10 @@
 from pathlib import Path
 
 from harness.lms.tool import FuncToolBase, FuncToolCallException, FuncToolSpec
-from harness.tools.llvm_mixins import LlvmDirMixin
+from harness.tools.llvm_mixins import LlvmSourceMixin
 
 
-class EditTool(FuncToolBase, LlvmDirMixin):
+class EditTool(FuncToolBase, LlvmSourceMixin):
   def __init__(self, llvm_dir: str):
     self.llvm_dir = Path(llvm_dir).resolve().absolute()
 

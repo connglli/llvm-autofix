@@ -3,7 +3,7 @@ from pathlib import Path
 from subprocess import CalledProcessError
 
 from harness.lms.tool import FuncToolBase, FuncToolCallException, FuncToolSpec
-from harness.tools.llvm_mixins import LlvmDirMixin
+from harness.tools.llvm_mixins import LlvmSourceMixin
 from harness.utils import bashlex, cmdline
 
 # TODO: add other tools that do not require permission
@@ -29,7 +29,7 @@ FORBIDDEN_TOOLS = [
 ]
 
 
-class BashTool(FuncToolBase, LlvmDirMixin):
+class BashTool(FuncToolBase, LlvmSourceMixin):
   def __init__(self, llvm_dir: str, max_output_length: int = 4096):
     self.llvm_dir = Path(llvm_dir).resolve().absolute()
     self.max_output_length = max_output_length

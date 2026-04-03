@@ -24,7 +24,7 @@ class LlvmBuildDirMixin:
     return p
 
 
-class LlvmDirMixin:
+class LlvmSourceMixin:
   def check_llvm_dir(self, subdir: str, should_exist=True) -> Path:
     """
     Check if the given directory is a subdirectory of the llvm/ directory.
