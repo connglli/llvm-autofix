@@ -44,7 +44,7 @@ from harness.llvm.llvm_helper import (
 from harness.lms.agent import ReachRoundLimit, ReachTokenLimit
 from harness.lms.tool import FuncToolCallException
 from harness.tools.bash import FORBIDDEN_TOOLS
-from harness.tools.test import TestTool
+from harness.tools.llvm_test import TestTool
 from harness.utils import bashlex
 from harness.utils.console import get_boxed_console
 
