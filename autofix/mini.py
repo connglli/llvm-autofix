@@ -27,6 +27,7 @@ from harness.llvm.llvm_helper import (
 )
 from harness.lms.agent import AgentBase
 from harness.lms.tool import FuncToolBase, FuncToolCallException, FuncToolSpec
+from harness.skills import list_skills as get_skill_list
 from harness.tools.code import CodeTool
 from harness.tools.debug import DebugTool
 from harness.tools.docs import DocsTool
@@ -706,16 +707,6 @@ def get_tool_list(fixenv: Environment, llvm: LLVM, debugger: DebuggerBase):
   ]
 
 
-def get_skill_list():
-  # The list of our skills and their call limits. We load all.
-  skills_dir = Path(__file__).parent.parent / "harness" / "skills"
-  return [
-    (sk.resolve().absolute(), MAX_TCS_GET_CONTEXT)
-    for sk in skills_dir.iterdir()
-    if sk.is_dir()
-  ]
-
-
 def autofix(
   rep: Reproducer,
   *,
@@ -742,11 +733,11 @@ def autofix(
 
   # Load and register skills as callable tools
   skills = get_skill_list()
-  for sk, th in skills:
+  for sk in skills:
     assert (
       "bash" in agent.tools.list() and agent.tools.get_remaining_budget("bash") > 0
     ), "Skills require the bash tool to be enabled"
-    agent.register_skill(sk, th)
+    agent.register_skill(sk, MAX_TCS_GET_CONTEXT)
 
   # Run the agent with all required information and tools
   return run_mini_agent(
