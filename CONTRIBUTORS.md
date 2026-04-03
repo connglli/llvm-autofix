@@ -21,7 +21,7 @@ If you chose to execute Step 0, you can edit `environments` to fill in you API k
 
 ```shell
 # tmux # Optional: spawn a tmux session if you want to see GDB's output.
-source ./scripts/upenv.sh
+source ./buildscripts/upenv.sh
 ```
 
 Otherwise, please follow [BUILD.md](./docs/BUILD.md) to install required dependencies and bring up the environment, then goto Step 2.

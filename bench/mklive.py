@@ -5,7 +5,7 @@ Selects issues whose knowledge_cutoff falls within the one-year window
 ending on the given date, and creates a directory of symlinks under bench/.
 
 Usage:
-    python scripts/mklive.py YYMMDD
+    python bench/mklive.py YYMMDD
 """
 
 import argparse
@@ -15,10 +15,8 @@ import sys
 from datetime import datetime, timedelta
 from pathlib import Path
 
-SCRIPT_DIR = Path(__file__).resolve().parent
-ROOT_DIR = SCRIPT_DIR.parent
-FULL_DIR = ROOT_DIR / "bench" / "full"
-BENCH_DIR = ROOT_DIR / "bench"
+BENCH_DIR = Path(__file__).resolve().parent
+FULL_DIR = BENCH_DIR / "full"
 
 
 def parse_timestamp(ts: str) -> datetime:
