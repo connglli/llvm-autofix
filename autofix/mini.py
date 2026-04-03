@@ -84,6 +84,8 @@ ENABLED_REPAIR_TOOLS = {
 ENABLED_TOOLS = ENABLED_REASON_TOOLS | ENABLED_REPAIR_TOOLS
 EDIT_AND_TEST_TOOLS = {"edit", "reset", "test"}
 GET_CONTEXT_TOOLS = ENABLED_TOOLS - EDIT_AND_TEST_TOOLS
+# Enabled skills
+ENABLED_SKILLS = set()
 
 # - ================================================
 # - LLVM settings
@@ -603,7 +605,15 @@ def run_opt(
   return opt_pass, opt_cmd, opt_log
 
 
-def get_tool_list(harness: Harness):
+def get_enabled_skills(harness: Harness):
+  return [
+    (sk, MAX_TCS_GET_CONTEXT)
+    for sk in harness.get_skills()
+    if sk.name in ENABLED_SKILLS
+  ]
+
+
+def get_enabled_tools(harness: Harness):
   tools: list[tuple[FuncToolBase, int]] = []
 
   # Harness-provided tools: source-tree, build, env, and debugger tools.
@@ -644,16 +654,15 @@ def autofix(
   )
 
   # The list of our tools and their call limits. 0 means allowing unlimited call.
-  tools = get_tool_list(harness)
-  for to, th in tools:
+  for to, th in get_enabled_tools(harness):
     agent.register_tool(to, th)
 
   # Load and register skills as callable tools
-  for sk in harness.skills:
+  for sk, th in get_enabled_skills(harness):
     assert (
       "bash" in agent.tools.list() and agent.tools.get_remaining_budget("bash") > 0
     ), "Skills require the bash tool to be enabled"
-    agent.register_skill(sk, MAX_TCS_GET_CONTEXT)
+    agent.register_skill(sk, th)
 
   # Run the agent with all required information and tools
   return run_mini_agent(
