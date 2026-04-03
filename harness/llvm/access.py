@@ -3,6 +3,9 @@ from pathlib import Path
 
 from harness.lms.tool import FuncToolCallException
 
+# Absolute paths that are always readable and writable regardless of ACL config.
+_ALWAYS_ALLOWED = ["/tmp"]
+
 
 class AccessError(FuncToolCallException):
   """Raised when a path access check fails."""
@@ -20,6 +23,9 @@ class AccessControl:
   Pattern matching uses :func:`fnmatch.fnmatch` (``*``, ``?``,
   ``[seq]``, ``[!seq]``).  A bare directory name without wildcard
   characters is treated as a prefix and matches everything underneath.
+
+  Absolute paths under ``/tmp/`` are always allowed (readable and
+  writable) to support temporary reproducer files.
   """
 
   def __init__(
@@ -44,7 +50,15 @@ class AccessControl:
         return True
     return False
 
+  def _is_always_allowed(self, path: str) -> bool:
+    """Check if *path* is an absolute path under an always-allowed prefix."""
+    resolved = str(Path(path).resolve())
+    return any(resolved.startswith(p + "/") or resolved == p for p in _ALWAYS_ALLOWED)
+
   def _resolve(self, path: str) -> Path:
+    # Absolute paths under always-allowed prefixes bypass the root check.
+    if self._is_always_allowed(path):
+      return Path(path).resolve()
     full = (self.root / path).resolve()
     if not full.is_relative_to(self.root):
       raise AccessError(
@@ -58,8 +72,11 @@ class AccessControl:
 
     Raises :class:`AccessError` if the path escapes the root, is not
     covered by any readable pattern, or matches an ignored pattern.
+    Absolute paths under ``/tmp/`` are always readable.
     """
     full = self._resolve(path)
+    if self._is_always_allowed(path):
+      return full
     if not self._matches(path, self.readable):
       raise AccessError(
         f"Path is not readable: {path}. Readable paths: {', '.join(self.readable)}"
@@ -74,9 +91,12 @@ class AccessControl:
     """Validate *path* is editable and return the resolved absolute path.
 
     The path must also be readable (not ignored).
+    Absolute paths under ``/tmp/`` are always editable.
     Raises :class:`AccessError` on violation.
     """
     full = self.check_readable(path)
+    if self._is_always_allowed(path):
+      return full
     if not self._matches(path, self.editable):
       raise AccessError(
         f"Path is not editable: {path}. Editable paths: {', '.join(self.editable)}"
