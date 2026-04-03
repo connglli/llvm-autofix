@@ -8,6 +8,7 @@ from subprocess import CalledProcessError, TimeoutExpired
 from typing import TYPE_CHECKING
 
 from harness.llvm.access import AccessControl
+from harness.llvm.intern import llvm as llvm_ops
 from harness.utils import cmdline
 
 if TYPE_CHECKING:
@@ -105,22 +106,16 @@ class Harness:
   @property
   def llvm_dir(self) -> Path:
     """Root of the LLVM source tree."""
-    from harness.llvm.intern import llvm as llvm_ops
-
     return Path(llvm_ops.llvm_dir).resolve()
 
   @property
   def build_dir(self) -> Path:
     """Current LLVM build directory."""
-    from harness.llvm.intern import llvm as llvm_ops
-
     return Path(llvm_ops.get_llvm_build_dir()).resolve()
 
   @property
   def alive_tv(self) -> str | None:
     """Path to the alive-tv binary, or ``None`` if not configured."""
-    from harness.llvm.intern import llvm as llvm_ops
-
     return llvm_ops.llvm_alive_tv
 
   @property
@@ -133,7 +128,7 @@ class Harness:
     return self._llvmcode
 
   # -------------------------------------------------------------------
-  # Operations
+  # LLVM Operations
   # -------------------------------------------------------------------
 
   def run_opt(
@@ -172,8 +167,6 @@ class Harness:
     ignored: list[str] | None = None,
   ) -> Harness:
     """Create a bare LLVM workspace (superopt, general dev)."""
-    from harness.llvm.intern import llvm as llvm_ops
-
     root = Path(llvm_ops.llvm_dir).resolve()
     acl = AccessControl(root, editable=editable, readable=readable, ignored=ignored)
     return Harness(acl=acl)
@@ -192,7 +185,6 @@ class Harness:
     ignored: list[str] | None = None,
   ) -> Harness:
     """Create a harness for a bench issue from ``bench/``."""
-    from harness.llvm.intern import llvm as llvm_ops
     from harness.llvm.intern.lab_env import FixEnv
 
     root = Path(llvm_ops.llvm_dir).resolve()
@@ -222,8 +214,6 @@ class Harness:
     ignored: list[str] | None = None,
   ) -> Harness:
     """Create a harness for an ad-hoc bug from a user-provided file."""
-    from harness.llvm.intern import llvm as llvm_ops
-
     root = Path(llvm_ops.llvm_dir).resolve()
     acl = AccessControl(root, editable=editable, readable=readable, ignored=ignored)
     return Harness(
@@ -238,8 +228,6 @@ class Harness:
   # -------------------------------------------------------------------
 
   def __enter__(self) -> Harness:
-    from harness.llvm.intern import llvm as llvm_ops
-
     # For bench issues, set build dir to a per-issue subdirectory and reset the repo.
     if self._issue_id:
       llvm_ops.set_llvm_build_dir(
@@ -253,8 +241,6 @@ class Harness:
     pass
 
   def _reset_with_retry(self):
-    from harness.llvm.intern import llvm as llvm_ops
-
     try:
       self.fixenv.reset()
     except Exception:
@@ -272,7 +258,6 @@ class Harness:
     calls the raw build function directly."""
     if self.fixenv is not None:
       return self.fixenv.build()
-    from harness.llvm.intern import llvm as llvm_ops
 
     return llvm_ops.build(
       max_build_jobs=os.cpu_count(),
@@ -293,8 +278,6 @@ class Harness:
     )
 
   def _reproduce_bench(self) -> Reproducer:
-    from harness.llvm.intern import llvm as llvm_ops
-
     check_failed, check_log = self.fixenv.check_fast()
     if check_failed:
       raise RuntimeError(f"Failed to build or reproduce the issue.\n\n{check_log}")
@@ -336,8 +319,6 @@ class Harness:
 
       if self._reproducer_bug_type == "crash":
         # If check=True didn't raise, opt exited 0 — unexpected for a crash.
-        from harness.llvm.intern import llvm as llvm_ops
-
         if not llvm_ops.is_opt_crash(symptom):
           raise RuntimeError(
             f"Expected crash but opt exited normally.\n\noutput:\n{symptom}"
@@ -362,27 +343,34 @@ class Harness:
     )
 
   # -------------------------------------------------------------------
-  # Git helpers
+  # Git operations
   # -------------------------------------------------------------------
 
   def git(self, *args: str) -> str:
     """Run a git command in the LLVM source directory."""
-    from harness.llvm.intern import llvm as llvm_ops
-
     return llvm_ops.git_execute(list(args))
+
+  def checkout(self, ref: str):
+    """Checkout a git ref in the LLVM source directory."""
+    self.git("checkout", ref)
+
+  def reset_state(self):
+    """Reset the LLVM source directory to a clean state."""
+    llvm_ops.reset()
+
+  def apply_patch(self, patch: str) -> tuple[bool, str]:
+    """Apply a unified diff patch to the LLVM source tree."""
+    return llvm_ops.apply_patch(patch)
 
   def sanitize_output(self, output: str) -> str:
     """Strip absolute LLVM paths from *output* for safe display to agents."""
-    from harness.llvm.intern import llvm as llvm_ops
-
     return llvm_ops.remove_path_from_output(output)
 
   # -------------------------------------------------------------------
   # Skills
   # -------------------------------------------------------------------
 
-  @property
-  def skills(self) -> list[Path]:
+  def get_skills(self) -> list[Path]:
     """All available skill directories (auto-discovered)."""
     from harness.skills import list_skills
 
@@ -401,8 +389,30 @@ class Harness:
       f"Skill {name!r} not found. Available skills: {', '.join(available)}"
     )
 
+  def install_skill(self, name: str, path: Path, exists_ok: bool = False):
+    """Install a skill into *path*/skills under the name *name*."""
+
+    skill_path = self.get_skill(name)
+
+    target_path = path / "skills"
+    target_path.mkdir(exist_ok=True)
+
+    target_skill_path = target_path / name
+    if target_skill_path.exists() and not exists_ok:
+      raise FileExistsError(
+        f"Target skill path {target_skill_path} already exists. Set exists_ok=True to overwrite."
+      )
+    if target_skill_path.exists() and exists_ok:
+      if target_skill_path.is_symlink() or target_skill_path.is_file():
+        target_skill_path.unlink()
+      elif target_skill_path.is_dir():
+        import shutil
+
+        shutil.rmtree(target_skill_path)
+    target_skill_path.symlink_to(skill_path, target_is_directory=True)
+
   # -------------------------------------------------------------------
-  # Tool factory
+  # Tools
   # -------------------------------------------------------------------
 
   def make_tools(self) -> list[FuncToolBase]:
