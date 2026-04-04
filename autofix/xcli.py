@@ -10,8 +10,7 @@ from pathlib import Path
 from typing import Optional
 from uuid import uuid4 as uuid
 
-import yaml
-
+import harness
 from autofix.mini import ADDITIONAL_CMAKE_FLAGS, NoAvailablePatchFound, RunStats
 from harness.llvm.harness import Harness
 from harness.lms.tool import FuncToolCallException
@@ -20,13 +19,7 @@ from harness.utils import cmdline
 _TEST_SERVER_ADDR = "127.0.0.1"
 _TEST_SERVER_PORT = 3921
 
-LLVM_HARNESS_HOME_DIR = os.environ.get("LLVM_HARNESS_HOME_DIR")
-
-PROMPT_TEMPLATE = yaml.safe_load(
-  Path(
-    os.path.join(os.environ.get("LLVM_HARNESS_HOME_DIR", "."), "autofix", "xcli.yaml")
-  ).read_text()
-)["prompt"]
+PROMPT_TEMPLATE = harness.load_yaml_config("autofix", "xcli.yaml")["prompt"]
 
 
 def panic(msg: str):
@@ -163,7 +156,7 @@ def save_xcli_trajectory(
     json.dump(sum_dict, fou, indent=2)
 
   # Find and save the trajectory
-  proj_name = "-".join(str(Path(LLVM_HARNESS_HOME_DIR).resolve().absolute()).split("/"))
+  proj_name = "-".join(str(Path(harness.home_dir).resolve().absolute()).split("/"))
   # Trajectory of CC is saved at:
   # - ~/.claude/projects/{proj_name}/{session} or
   # ~/.claude/projects/{proj_name}/{session}.jsonl
@@ -185,8 +178,7 @@ def save_xcli_trajectory(
 
 
 def main():
-  if LLVM_HARNESS_HOME_DIR is None:
-    panic("The llvm-harness environment has not been brought up.")
+  harness.require_home_dir()
 
   args = parse_args()
 
@@ -250,11 +242,7 @@ def main():
         raise NoAvailablePatchFound("All efforts tried yet no available patches found.")
       if not h.fixenv.use_entire_regression_test_suite:
         print("Post-validating the generated patch ...")
-        h.fixenv.use_entire_regression_test_suite = True
-        passed, errmsg = h.fixenv.check_midend()
-        if passed:
-          passed, errmsg = h.fixenv.check_regression_diff()
-        h.fixenv.use_entire_regression_test_suite = False
+        passed, errmsg = h.post_validate()
         if not passed:
           stats.patch = None
           print("Post-validation failed:", errmsg)

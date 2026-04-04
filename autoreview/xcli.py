@@ -6,21 +6,12 @@ from argparse import ArgumentParser
 from pathlib import Path
 from typing import Optional
 
-import yaml
-
+import harness
 from autofix.mini import ADDITIONAL_CMAKE_FLAGS
 from harness.llvm.harness import Harness
 from harness.utils import cmdline
 
-LLVM_HARNESS_HOME_DIR = os.environ.get("LLVM_HARNESS_HOME_DIR")
-
-PROMPT_TEMPLATE = yaml.safe_load(
-  Path(
-    os.path.join(
-      os.environ.get("LLVM_HARNESS_HOME_DIR", "."), "autoreview", "xcli.yaml"
-    )
-  ).read_text()
-)["prompt"]
+PROMPT_TEMPLATE = harness.load_yaml_config("autoreview", "xcli.yaml")["prompt"]
 
 
 def panic(msg: str):
@@ -102,8 +93,7 @@ def render_xcli_command(
 
 
 def main():
-  if LLVM_HARNESS_HOME_DIR is None:
-    panic("The llvm-harness environment has not been brought up.")
+  harness.require_home_dir()
 
   args = parse_args()
 

@@ -8,12 +8,11 @@ import requests
 from unidiff import PatchSet
 
 import autofix.dataset.hints as hints
+import harness
 import harness.llvm.intern.llvm as llvm_helper
 from harness.llvm.intern.llvm_code import LlvmCode
 
-if os.environ.get("LLVM_HARNESS_HOME_DIR") is None:
-  print("Error: The llvm-harness environment has not been brought up.")
-  exit(1)
+harness.require_home_dir()
 
 github_token = os.environ.get("LAB_GITHUB_TOKEN")
 if not github_token:

@@ -11,13 +11,13 @@ os.environ["LITELLM_ANTHROPIC_DISABLE_URL_SUFFIX"] = (
 )
 os.environ["MSWEA_SILENT_STARTUP"] = "1"  # Silent startup
 os.environ["MSWEA_MODEL_RETRY_STOP_AFTER_ATTEMPT"] = "3"  # Retry 3 times
-import yaml
 from minisweagent import Model
 from minisweagent.agents.default import DefaultAgent, Submitted
 from minisweagent.environments.local import LocalEnvironment
 from minisweagent.models.litellm_model import LitellmModel
 from minisweagent.run.utils.save import save_traj
 
+import harness
 from autofix.mini import (
   ADDITIONAL_CMAKE_FLAGS,
   AGENT_MAX_CHAT_ROUNDS,
@@ -148,11 +148,7 @@ class MyAgent(DefaultAgent):
       ),
       env=MyEnvironment(cwd=workdir),
       # IMPORTANT: Configurations except for `agent` should be configured programmatically.
-      **yaml.safe_load(
-        Path(
-          os.path.join(os.environ.get("LLVM_HARNESS_HOME_DIR"), "autofix", "mswe.yaml")
-        ).read_text()
-      )["agent"],
+      **harness.load_yaml_config("autofix", "mswe.yaml")["agent"],
     )
     self.stats = stats
     self.harness: Harness | None = None
@@ -251,8 +247,7 @@ def parse_args():
 
 
 def main():
-  if os.environ.get("LLVM_HARNESS_HOME_DIR") is None:
-    panic("The llvm-harness environment has not been brought up.")
+  harness.require_home_dir()
 
   args = parse_args()
 
@@ -295,11 +290,7 @@ def main():
         raise NoAvailablePatchFound("All efforts tried yet no available patches found.")
       if not h.fixenv.use_entire_regression_test_suite:
         console.print("Post-validating the generated patch ...")
-        h.fixenv.use_entire_regression_test_suite = True
-        passed, errmsg = h.fixenv.check_midend()
-        if passed:
-          passed, errmsg = h.fixenv.check_regression_diff()
-        h.fixenv.use_entire_regression_test_suite = False
+        passed, errmsg = h.post_validate()
         if not passed:
           stats.patch = None
           console.printb(title="Post-validation", message=errmsg)

@@ -6,8 +6,7 @@ from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import List, Optional, Tuple
 
-import yaml
-
+import harness
 from harness.llvm import (
   AccessControl,
   Harness,
@@ -22,11 +21,7 @@ from harness.utils.console import get_boxed_console
 # - Prompts
 # - ===============================================
 
-_PROMPTS = yaml.safe_load(
-  Path(
-    os.path.join(os.environ.get("LLVM_HARNESS_HOME_DIR", "."), "autofix", "mini.yaml")
-  ).read_text()
-)["prompts"]
+_PROMPTS = harness.load_yaml_config("autofix", "mini.yaml")["prompts"]
 PROMPT_REASON = _PROMPTS["reason"]
 PROMPT_REPAIR = _PROMPTS["repair"]
 
@@ -721,8 +716,7 @@ def parse_args():
 
 
 def main():
-  if os.environ.get("LLVM_HARNESS_HOME_DIR") is None:
-    panic("The llvm-harness environment has not been brought up.")
+  harness.require_home_dir()
 
   args = parse_args()
 
@@ -800,11 +794,7 @@ def main():
       # Post validation when necessary
       if not h.fixenv.use_entire_regression_test_suite:
         console.print("Post-validating the generated patch ...")
-        h.fixenv.use_entire_regression_test_suite = True
-        passed, errmsg = h.fixenv.check_midend()
-        if passed:
-          passed, errmsg = h.fixenv.check_regression_diff()
-        h.fixenv.use_entire_regression_test_suite = False
+        passed, errmsg = h.post_validate()
         if not passed:
           stats.patch = None
           console.printb(title="Post-validation", message=errmsg)

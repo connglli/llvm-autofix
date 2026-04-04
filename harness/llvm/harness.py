@@ -263,6 +263,26 @@ class Harness:
       max_build_jobs=os.cpu_count(),
     )
 
+  def post_validate(self) -> tuple[bool, str]:
+    """Run full regression tests to validate a patch.
+
+    Temporarily enables the entire regression test suite, runs midend +
+    regression-diff checks, then restores the original setting.
+
+    Returns ``(passed, errmsg)``.
+    """
+    if self.fixenv is None:
+      return True, "No fixenv configured, skipping post-validation."
+    backup_val = self.fixenv.use_entire_regression_test_suite
+    self.fixenv.use_entire_regression_test_suite = True
+    try:
+      passed, errmsg = self.fixenv.check_midend()
+      if passed:
+        passed, errmsg = self.fixenv.check_regression_diff()
+      return passed, errmsg
+    finally:
+      self.fixenv.use_entire_regression_test_suite = backup_val
+
   def reproduce(self) -> Reproducer:
     """Reproduce the configured bug and return a :class:`Reproducer`.
 
