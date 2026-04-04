@@ -29,7 +29,7 @@ def verify_issue(issue):
   if not res:
     print(json.dumps(log, indent=2))
     raise RuntimeError("Failed to reproduce")
-  llvm_helper.apply(data["patch"])
+  llvm_helper.apply_patch(data["patch"])
   print("Stage 2 build")
   res, log = llvm_helper.build(max_build_jobs)
   if not res:
