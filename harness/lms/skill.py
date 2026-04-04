@@ -75,9 +75,7 @@ class SkillTool(StatelessFuncToolBase):
 
     # Inject script paths (agent can run them via bash tool)
     if self.skill.scripts and self.inject_materials:
-      scripts_text = "\n".join(
-        f"- `{s.resolve().absolute()}`" for s in self.skill.scripts
-      )
+      scripts_text = "\n".join(f"- `{s.resolve()}`" for s in self.skill.scripts)
       prompt += (
         "\n\n# Scripts\n\n"
         + scripts_text
@@ -86,9 +84,7 @@ class SkillTool(StatelessFuncToolBase):
 
     # Inject reference file paths (agent can read them on demand)
     if self.skill.references and self.inject_materials:
-      refs_text = "\n".join(
-        f"- `{ref.resolve().absolute()}`" for ref in self.skill.references
-      )
+      refs_text = "\n".join(f"- `{ref.resolve()}`" for ref in self.skill.references)
       prompt += "\n\n# References\n\n" + refs_text
 
     # Auto-add bash to tools if skill has scripts

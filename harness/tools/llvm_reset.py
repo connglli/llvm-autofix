@@ -26,10 +26,10 @@ class ResetTool(StatelessFuncToolBase):
     )
 
   def _call(self, *, file: str, **kwargs) -> str:
-    self.acl.check_editable(file)
+    resolved = self.acl.check_editable(file)
     try:
       subprocess.check_call(
-        ["git", "-C", self.git_root, "checkout", self.base_commit, file],
+        ["git", "-C", self.git_root, "checkout", self.base_commit, str(resolved)],
       )
     except subprocess.CalledProcessError as e:
       raise FuncToolCallException(
@@ -40,4 +40,4 @@ class ResetTool(StatelessFuncToolBase):
         + "\n"
         + (e.stderr.decode() if e.stderr else ""),
       )
-    return f"Checked out {file} from commit {self.base_commit}."
+    return f"Checked out {resolved} from commit {self.base_commit}."

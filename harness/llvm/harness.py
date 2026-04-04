@@ -7,6 +7,7 @@ from pathlib import Path
 from subprocess import CalledProcessError, TimeoutExpired
 from typing import TYPE_CHECKING, Literal
 
+import harness
 from harness.llvm.access import AccessControl
 from harness.llvm.intern import llvm as llvm_ops
 from harness.utils import cmdline
@@ -191,7 +192,7 @@ class Harness:
     name = preset or DEFAULT_ACL_PRESET
     editable, readable, ignored = _ACL_PRESETS[name]()
     build_dir = str(Path(llvm_ops.get_llvm_build_dir()).resolve())
-    skills_dir = str(Path(__file__).resolve().parent.parent / "skills")
+    skills_dir = str(Path(harness.require_home_dir()) / "skills")
     return AccessControl(
       editable=editable + [build_dir] + (extra_editable or []),
       readable=readable + [build_dir, skills_dir] + (extra_readable or []),
@@ -490,10 +491,11 @@ class Harness:
 
     Raises :class:`KeyError` if the skill is not found.
     """
-    for sk in self.get_skills():
+    skills = self.get_skills()
+    for sk in skills:
       if sk.name == name:
         return sk
-    available = [sk.name for sk in self.get_skills()]
+    available = [sk.name for sk in skills]
     raise KeyError(
       f"Skill {name!r} not found. Available skills: {', '.join(available)}"
     )

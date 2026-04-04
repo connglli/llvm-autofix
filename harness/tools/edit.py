@@ -9,7 +9,7 @@ class EditTool(StatelessFuncToolBase):
   def spec(self) -> FuncToolSpec:
     return FuncToolSpec(
       "edit",
-      "Replace an exact code snippet in a file with new content. Use this when you need to modify specific lines — provide the exact existing text to match and the replacement. Prefer this over `write` for targeted changes.",
+      "Replace an exact code snippet in a file with new content. Use this when you need to modify specific lines — provide the exact existing text to match and the replacement. Prefer this over `write` for targeted changes. This replaces all occurrences of the `old` snippet, so ensure it is unique in the file to avoid unintended edits.",
       [
         FuncToolSpec.Param(
           "file",
