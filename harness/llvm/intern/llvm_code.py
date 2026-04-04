@@ -233,7 +233,12 @@ class LlvmCode:
   ) -> CodeSnippet:
     code = CodeSnippet()
 
-    with open(self.llvm_dir / file_name, "r") as f:
+    # Accept both absolute paths and paths relative to llvm_dir.
+    file_path = Path(file_name)
+    if not file_path.is_absolute():
+      file_path = self.llvm_dir / file_path
+
+    with open(file_path, "r") as f:
       src = f.read()
     lines = [""] + src.splitlines(keepends=True)
     if start_line >= len(lines):
@@ -266,7 +271,7 @@ class LlvmCode:
     Lines are 1-indexed.  *context* adds extra lines before and after
     the specified range.
     """
-    file_path = self.llvm_dir / file
+    file_path = Path(file) if Path(file).is_absolute() else self.llvm_dir / file
     if not file_path.exists():
       raise ValueError(f"File {file} does not exist.")
     lines = [""] + file_path.read_text().splitlines()

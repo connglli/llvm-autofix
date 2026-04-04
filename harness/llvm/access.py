@@ -3,9 +3,6 @@ from pathlib import Path
 
 from harness.lms.tool import FuncToolCallException
 
-# Absolute paths that are always readable and writable regardless of ACL config.
-_ALWAYS_ALLOWED = ["/tmp"]
-
 
 class AccessError(FuncToolCallException):
   """Raised when a path access check fails."""
@@ -14,31 +11,24 @@ class AccessError(FuncToolCallException):
 
 
 class AccessControl:
-  """Configurable file access policy for the LLVM workspace.
+  """Pure file-access policy.
 
-  Replaces hardcoded ``llvm/`` prefix checks with configurable glob
-  patterns so that each harness scenario can specify exactly which
-  paths are editable, readable, or ignored.
-
-  Pattern matching uses :func:`fnmatch.fnmatch` (``*``, ``?``,
-  ``[seq]``, ``[!seq]``).  A bare directory name without wildcard
-  characters is treated as a prefix and matches everything underneath.
-
-  Absolute paths under ``/tmp/`` are always allowed (readable and
-  writable) to support temporary reproducer files.
+  Callers pass **absolute paths**; the policy answers yes/no based on
+  configurable glob patterns.  Pattern matching uses
+  :func:`fnmatch.fnmatch` (``*``, ``?``, ``[seq]``, ``[!seq]``).
+  A bare directory name without wildcard characters is treated as a
+  prefix and matches everything underneath.
   """
 
   def __init__(
     self,
-    root: Path,
     *,
-    editable: list[str] | None = None,
-    readable: list[str] | None = None,
+    editable: list[str],
+    readable: list[str],
     ignored: list[str] | None = None,
   ):
-    self.root = Path(root).resolve()
-    self.editable = editable or ["llvm/lib", "llvm/include"]
-    self.readable = readable or ["llvm"]
+    self.editable = editable
+    self.readable = readable
     self.ignored = ignored or []
 
   def _matches(self, path: str, patterns: list[str]) -> bool:
@@ -50,58 +40,49 @@ class AccessControl:
         return True
     return False
 
-  def _is_always_allowed(self, path: str) -> bool:
-    """Check if *path* is an absolute path under an always-allowed prefix."""
-    resolved = str(Path(path).resolve())
-    return any(resolved.startswith(p + "/") or resolved == p for p in _ALWAYS_ALLOWED)
+  def is_readable(self, path: str) -> bool:
+    """Return whether *path* is readable according to the policy."""
+    return self._matches(path, self.readable) and not self._matches(path, self.ignored)
 
-  def _resolve(self, path: str) -> Path:
-    # Absolute paths under always-allowed prefixes bypass the root check.
-    if self._is_always_allowed(path):
-      return Path(path).resolve()
-    full = (self.root / path).resolve()
-    if not full.is_relative_to(self.root):
-      raise AccessError(
-        f"Path escapes the workspace root: {path}. "
-        "Please provide a relative path within the LLVM source tree."
-      )
-    return full
+  def is_editable(self, path: str) -> bool:
+    """Return whether *path* is editable according to the policy."""
+    return self.is_readable(path) and self._matches(path, self.editable)
+
+  def is_ignored(self, path: str) -> bool:
+    """Return whether *path* matches any ignored pattern."""
+    return self._matches(path, self.ignored)
 
   def check_readable(self, path: str) -> Path:
-    """Validate *path* is readable and return the resolved absolute path.
+    """Validate *path* is readable and return the resolved :class:`Path`.
 
-    Raises :class:`AccessError` if the path escapes the root, is not
-    covered by any readable pattern, or matches an ignored pattern.
-    Absolute paths under ``/tmp/`` are always readable.
+    Raises :class:`AccessError` if the path is not covered by any
+    readable pattern or matches an ignored pattern.
     """
-    full = self._resolve(path)
-    if self._is_always_allowed(path):
-      return full
-    if not self._matches(path, self.readable):
+    resolved = Path(path).resolve()
+    rpath = str(resolved)
+    if not self._matches(rpath, self.readable):
       raise AccessError(
         f"Path is not readable: {path}. Readable paths: {', '.join(self.readable)}"
       )
-    if self._matches(path, self.ignored):
+    if self._matches(rpath, self.ignored):
       raise AccessError(
         f"Path is ignored: {path}. Ignored paths: {', '.join(self.ignored)}"
       )
-    return full
+    return resolved
 
   def check_editable(self, path: str) -> Path:
-    """Validate *path* is editable and return the resolved absolute path.
+    """Validate *path* is editable and return the resolved :class:`Path`.
 
     The path must also be readable (not ignored).
-    Absolute paths under ``/tmp/`` are always editable.
     Raises :class:`AccessError` on violation.
     """
-    full = self.check_readable(path)
-    if self._is_always_allowed(path):
-      return full
-    if not self._matches(path, self.editable):
+    resolved = self.check_readable(path)
+    rpath = str(resolved)
+    if not self._matches(rpath, self.editable):
       raise AccessError(
         f"Path is not editable: {path}. Editable paths: {', '.join(self.editable)}"
       )
-    return full
+    return resolved
 
   def check_readable_file(self, path: str) -> Path:
     """Like :meth:`check_readable` but also asserts the path is an existing file."""
@@ -131,13 +112,9 @@ class AccessControl:
         raise AccessError(f"Path is not a file: {path}")
     return full
 
-  def is_ignored(self, path: str) -> bool:
-    """Return whether *path* matches any ignored pattern."""
-    return self._matches(path, self.ignored)
-
   def describe(self) -> str:
     """Render access rules as human-readable text for prompt injection."""
-    lines = [f"Editable paths: {', '.join(self.editable)}, /tmp"]
+    lines = [f"Editable paths: {', '.join(self.editable)}"]
     lines.append(f"Readable paths: {', '.join(self.readable)}")
     if self.ignored:
       lines.append(f"Ignored paths: {', '.join(self.ignored)}")

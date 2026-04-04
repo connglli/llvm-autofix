@@ -10,7 +10,7 @@ class DebugTool(StatelessFuncToolBase):
     return FuncToolSpec(
       "debug",
       "Execute a GDB command in the attached debugger session and return the result. "
-      "The debugger is paused at the crash site or transformation breakpoint. "
+      "The debugger is paused at the crash site or transformation breakpoint of LLVM. "
       "Use this to inspect the call stack, print variables, navigate frames, or set watchpoints. "
       "Commands that start new sessions (run/start/quit) or invoke shell (shell/make/pipe) are forbidden.",
       [

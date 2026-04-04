@@ -1,5 +1,4 @@
 import re
-from pathlib import Path
 
 from harness.llvm.debugger import DebuggerBase
 from harness.llvm.intern.llvm_code import LlvmCode
@@ -32,7 +31,7 @@ class DocsTool(StatelessFuncToolBase):
         return self.llvm.render_func_code(
           func,
           int(match.group(1)),
-          Path(match.group(2)).relative_to(self.llvm.llvm_dir),
+          match.group(2),
         ).header
       return "Unavailable"
     except Exception as e:

@@ -15,7 +15,7 @@ class EditTool(StatelessFuncToolBase):
           "file",
           "string",
           True,
-          "The relative path of the file to edit (starting with llvm/).",
+          "The absolute path of the file to edit.",
         ),
         FuncToolSpec.Param(
           "old", "string", True, "The *exact* code snippet to be replaced in the file."

@@ -2,7 +2,6 @@ import os
 import subprocess
 import tempfile
 from multiprocessing import Pool
-from pathlib import Path
 from typing import Dict, List
 
 from harness.utils import cmdline
@@ -351,21 +350,15 @@ def is_valid_fix(commit):
   return False
 
 
-def remove_path_from_output(output: str) -> str:
-  output = output.replace(str(Path(llvm_dir).resolve()) + "/", "")
-  output = output.replace(str(Path(__llvm_build_dir).resolve()) + "/", "")
-  return output
-
-
 def pretty_render_log(log) -> str:
   if isinstance(log, str):
-    return remove_path_from_output(log)
+    return log
   if isinstance(log, dict):
     pretty_log = ""
     for key, value in log.items():
       pretty_log += f"--- {key} ---\n{pretty_render_log(value)}\n\n"
     return pretty_log
-  return remove_path_from_output(str(log))
+  return str(log)
 
 
 def set_llvm_build_dir(new_dir: str):

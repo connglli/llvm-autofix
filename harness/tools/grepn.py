@@ -1,13 +1,13 @@
-from pathlib import Path
 from subprocess import CalledProcessError
 
+from harness.llvm.access import AccessControl
 from harness.lms.tool import FuncToolCallException, FuncToolSpec, StatelessFuncToolBase
 from harness.utils import cmdline
 
 
 class GrepNTool(StatelessFuncToolBase):
-  def __init__(self, llvm_dir: str, n: int):
-    self.llvm_dir = Path(llvm_dir).resolve().absolute()
+  def __init__(self, acl: AccessControl, n: int = 250):
+    self.acl = acl
     self.n = n
 
   def spec(self) -> FuncToolSpec:
@@ -27,10 +27,16 @@ class GrepNTool(StatelessFuncToolBase):
           True,
           "The arguments including options, patterns, and files. NOTICE: ensure the pattern to search is wrapped in single quotes (i.e., '...'), e.g., `-nRI 'test-pattern'`.",
         ),
+        FuncToolSpec.Param(
+          "directory",
+          "string",
+          True,
+          "The absolute path to the base directory to search in.",
+        ),
       ],
     )
 
-  def _call(self, *, k: int, args: str, **kwargs) -> str:
+  def _call(self, *, k: int, args: str, directory: str, **kwargs) -> str:
     if k < 1:
       raise FuncToolCallException(
         f"The index k must be a positive integer, but {k} was given."
@@ -39,8 +45,9 @@ class GrepNTool(StatelessFuncToolBase):
       raise FuncToolCallException(
         "No arguments provided. Please specify the pattern and files to search."
       )
+    search_dir = self.acl.check_readable_dir(directory)
     try:
-      result = cmdline.check_output(f"grep {args}", cwd=self.llvm_dir)
+      result = cmdline.check_output(f"grep {args}", cwd=search_dir)
       lines = result.decode("utf-8").strip().splitlines(keepends=True)
     except CalledProcessError as e:
       if e.returncode == 1:

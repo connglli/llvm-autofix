@@ -5,7 +5,7 @@ import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 from subprocess import CalledProcessError, TimeoutExpired
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal
 
 from harness.llvm.access import AccessControl
 from harness.llvm.intern import llvm as llvm_ops
@@ -62,12 +62,71 @@ def _make_temp_ll(issue_id: str, content: str) -> Path:
   return Path(path)
 
 
+def _llvm_root() -> str:
+  """Resolved absolute path to the LLVM source tree (single source of truth)."""
+  return str(Path(llvm_ops.llvm_dir).resolve())
+
+
+# ---------------------------------------------------------------------------
+# ACL presets
+# ---------------------------------------------------------------------------
+# Each preset returns ``(editable, readable, ignored)`` lists of absolute
+# path patterns.  They are callables because ``llvm_dir`` is resolved from
+# environment variables at runtime.
+
+AclPreset = Literal["llvm", "llvm+clang"]
+
+_ACL_PRESETS: dict[str, callable] = {}
+
+
+def _register_acl_preset(name: str):
+  """Decorator that registers an ACL preset."""
+
+  def _register(fn):
+    _ACL_PRESETS[name] = fn
+    return fn
+
+  return _register
+
+
+@_register_acl_preset("llvm")
+def _acl_midend() -> tuple[list[str], list[str], list[str]]:
+  """Middle-end focus: read the whole llvm/ tree, edit lib/ and include/."""
+  r = _llvm_root()
+  return (
+    [f"{r}/llvm/lib", f"{r}/llvm/include", "/tmp"],  # editable
+    [f"{r}/llvm", "/tmp"],  # readable
+    [],  # ignored
+  )
+
+
+@_register_acl_preset("llvm+clang")
+def _acl_fullend() -> tuple[list[str], list[str], list[str]]:
+  """Full LLVM: read and edit everything under the project root."""
+  r = _llvm_root()
+  return (
+    [
+      f"{r}/llvm/lib",
+      f"{r}/llvm/include",
+      f"{r}/clang/lib",
+      f"{r}/clang/include",
+      "/tmp",
+    ],  # editable
+    [f"{r}/llvm", f"{r}/clang", "/tmp"],  # readable
+    [],  # ignored
+  )
+
+
+DEFAULT_ACL_PRESET: AclPreset = "llvm"
+
+
+# ---------------------------------------------------------------------------
+# Harness
+# ---------------------------------------------------------------------------
+
+
 class Harness:
   """Configured LLVM workspace — the single entry point for harness consumers.
-
-  Paths (``llvm_dir``, ``build_dir``) are managed by the lowest layer
-  (``intern/llvm.py``) which loads them from environment variables.
-  The Harness reads from that single source of truth.
 
   Use one of the factory methods to create an instance:
 
@@ -79,7 +138,8 @@ class Harness:
   def __init__(
     self,
     *,
-    acl: AccessControl | None = None,
+    acl_preset: AclPreset | None = None,
+    acl_extras: tuple[list[str], list[str], list[str]] | None = None,
     # Bench-issue fields (set by from_issue)
     fixenv: FixEnv | None = None,
     issue_id: str | None = None,
@@ -88,7 +148,9 @@ class Harness:
     reproducer_command: str | None = None,
     reproducer_bug_type: str | None = None,
   ):
-    self.acl = acl or AccessControl(self.llvm_dir)
+    self._acl_preset = acl_preset
+    self._acl_extras = acl_extras or ([], [], [])
+    self.acl = Harness._make_acl(self._acl_preset, *self._acl_extras)
     self.fixenv: FixEnv | None = fixenv
     self._issue_id = issue_id
     self._llvmcode: LlvmCode | None = None
@@ -112,6 +174,29 @@ class Harness:
   def build_dir(self) -> Path:
     """Current LLVM build directory."""
     return Path(llvm_ops.get_llvm_build_dir()).resolve()
+
+  @staticmethod
+  def _make_acl(
+    preset: AclPreset | None = None,
+    extra_editable: list[str] | None = None,
+    extra_readable: list[str] | None = None,
+    extra_ignored: list[str] | None = None,
+  ) -> AccessControl:
+    """Build an ACL from a named preset plus caller-supplied extras.
+
+    The build directory is added automatically based on the current
+    value of ``get_llvm_build_dir()`` so that it reflects any changes
+    made by ``__enter__``.
+    """
+    name = preset or DEFAULT_ACL_PRESET
+    editable, readable, ignored = _ACL_PRESETS[name]()
+    build_dir = str(Path(llvm_ops.get_llvm_build_dir()).resolve())
+    skills_dir = str(Path(__file__).resolve().parent.parent / "skills")
+    return AccessControl(
+      editable=editable + [build_dir] + (extra_editable or []),
+      readable=readable + [build_dir, skills_dir] + (extra_readable or []),
+      ignored=ignored + (extra_ignored or []),
+    )
 
   @property
   def alive_tv(self) -> str | None:
@@ -162,14 +247,17 @@ class Harness:
   @staticmethod
   def workspace(
     *,
-    editable: list[str] | None = None,
-    readable: list[str] | None = None,
-    ignored: list[str] | None = None,
+    acl_preset: AclPreset | None = None,
+    extra_editable: list[str] | None = None,
+    extra_readable: list[str] | None = None,
+    extra_ignored: list[str] | None = None,
   ) -> Harness:
     """Create a bare LLVM workspace (superopt, general dev)."""
-    root = Path(llvm_ops.llvm_dir).resolve()
-    acl = AccessControl(root, editable=editable, readable=readable, ignored=ignored)
-    return Harness(acl=acl)
+    extras = (extra_editable or [], extra_readable or [], extra_ignored or [])
+    return Harness(
+      acl_preset=acl_preset,
+      acl_extras=extras,
+    )
 
   @staticmethod
   def from_issue(
@@ -180,15 +268,15 @@ class Harness:
     max_test_jobs: int | None = None,
     aggressive_testing: bool = False,
     model_knowledge_cutoff: str = "2023-12-31Z",
-    editable: list[str] | None = None,
-    readable: list[str] | None = None,
-    ignored: list[str] | None = None,
+    acl_preset: AclPreset | None = None,
+    extra_editable: list[str] | None = None,
+    extra_readable: list[str] | None = None,
+    extra_ignored: list[str] | None = None,
   ) -> Harness:
     """Create a harness for a bench issue from ``bench/``."""
     from harness.llvm.intern.lab_env import FixEnv
 
-    root = Path(llvm_ops.llvm_dir).resolve()
-    acl = AccessControl(root, editable=editable, readable=readable, ignored=ignored)
+    extras = (extra_editable or [], extra_readable or [], extra_ignored or [])
     env = FixEnv(
       issue_id,
       base_model_knowledge_cutoff=model_knowledge_cutoff,
@@ -198,7 +286,8 @@ class Harness:
       use_entire_regression_test_suite=aggressive_testing,
     )
     return Harness(
-      acl=acl,
+      acl_preset=acl_preset,
+      acl_extras=extras,
       fixenv=env,
       issue_id=issue_id,
     )
@@ -209,15 +298,16 @@ class Harness:
     command: str,
     bug_type: str,
     *,
-    editable: list[str] | None = None,
-    readable: list[str] | None = None,
-    ignored: list[str] | None = None,
+    acl_preset: AclPreset | None = None,
+    extra_editable: list[str] | None = None,
+    extra_readable: list[str] | None = None,
+    extra_ignored: list[str] | None = None,
   ) -> Harness:
     """Create a harness for an ad-hoc bug from a user-provided file."""
-    root = Path(llvm_ops.llvm_dir).resolve()
-    acl = AccessControl(root, editable=editable, readable=readable, ignored=ignored)
+    extras = (extra_editable or [], extra_readable or [], extra_ignored or [])
     return Harness(
-      acl=acl,
+      acl_preset=acl_preset,
+      acl_extras=extras,
       reproducer_file=str(file),
       reproducer_command=command,
       reproducer_bug_type=bug_type,
@@ -234,6 +324,9 @@ class Harness:
         os.path.join(llvm_ops.get_llvm_build_dir(), self._issue_id)
       )
       self._reset_with_retry()
+
+    # Rebuild ACL now that the build dir is finalized.
+    self.acl = Harness._make_acl(self._acl_preset, *self._acl_extras)
 
     return self
 
@@ -382,10 +475,6 @@ class Harness:
     """Apply a unified diff patch to the LLVM source tree."""
     return llvm_ops.apply_patch(patch)
 
-  def sanitize_output(self, output: str) -> str:
-    """Strip absolute LLVM paths from *output* for safe display to agents."""
-    return llvm_ops.remove_path_from_output(output)
-
   # -------------------------------------------------------------------
   # Skills
   # -------------------------------------------------------------------
@@ -496,7 +585,7 @@ class Harness:
       from harness.tools.llvm_test import TestTool
 
       tools.append(TestTool(self.fixenv))
-      tools.append(ResetTool(self.acl, self.fixenv.base_commit))
+      tools.append(ResetTool(self.acl, self.fixenv.base_commit, str(self.llvm_dir)))
       tools.append(PreviewTool(self.fixenv))
       tools.append(LangRefTool(self.fixenv))
 

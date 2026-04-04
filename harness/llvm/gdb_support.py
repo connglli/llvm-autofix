@@ -379,10 +379,10 @@ class GDB(DebuggerBase):
           file = loc.symtab.filename
       file = Path(file)
       try:
-        file = file.relative_to(src_path)
+        rel_file = file.relative_to(src_path)
       except Exception:
-        pass
-      if self.is_interesting_frame(str(file)):
+        rel_file = file
+      if self.is_interesting_frame(str(rel_file)):
         available_symbols = []
         # print(f"Parsing level-{level} frame {func}() at {file}:{line}")
         func_start = int(1e10)

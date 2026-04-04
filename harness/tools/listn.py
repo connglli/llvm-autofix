@@ -16,7 +16,7 @@ class ListNTool(StatelessFuncToolBase):
           "directory",
           "string",
           True,
-          "The relative path (starting with llvm/) to the directory to list.",
+          "The absolute path to the directory to list.",
         ),
         FuncToolSpec.Param(
           "k",
@@ -38,9 +38,7 @@ class ListNTool(StatelessFuncToolBase):
       contents = [path for path in dir_full_path.iterdir()]
       files = [path for path in contents if path.is_file()]
       dirs = [path for path in contents if path.is_dir()]
-      results = [str(path.relative_to(self.acl.root)) + "/" for path in dirs] + [
-        str(path.relative_to(self.acl.root)) for path in files
-      ]
+      results = [str(path) + "/" for path in dirs] + [str(path) for path in files]
       # Filter out ignored paths.
       results = [r for r in results if not self.acl.is_ignored(r.rstrip("/"))]
       results.sort()  # Sort the results alphabetically

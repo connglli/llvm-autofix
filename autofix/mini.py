@@ -415,7 +415,7 @@ class SubmitAnalysisTool(StatelessFuncToolBase):
           "list[tuple[int,int,string]]",
           True,
           "A list of edit points with each being a tuple of the one-indexed starting line number (included)"
-          ", the ending line number (included), and the relative path of the file to edit (starting with llvm/).",
+          ", the ending line number (included), and the absolute path of the file to edit.",
         ),
         FuncToolSpec.Param(
           "thoughts",
@@ -439,7 +439,7 @@ class SubmitAnalysisTool(StatelessFuncToolBase):
     for ind, edit in enumerate(editpoints):
       if len(edit) != 3:
         raise FuncToolCallException(
-          f"Each edit point must be a tuple of 3 elements (starting line number, ending line number, and the relative path of the file to edit): {edit}"
+          f"Each edit point must be a tuple of 3 elements (starting line number, ending line number, and the absolute path of the file to edit): {edit}"
         )
       fixed_edit = []
       try:
@@ -470,7 +470,7 @@ class SubmitAnalysisTool(StatelessFuncToolBase):
       fixed_edit.append(end_line)
       try:
         resolved = self.acl.check_readable_file(edit[2])
-        fixed_edit.append(str(resolved.relative_to(self.acl.root)))
+        fixed_edit.append(str(resolved))
       except Exception as e:
         raise FuncToolCallException(
           f"Invalid file path for detected at editpoints[{ind}]: {edit}. {e}"
@@ -590,11 +590,8 @@ def run_mini_agent(
       if not is_interesting_file(editpoint_file):
         console.print(f"Ignore non-interesting file {editpoint_file} for now.")
         continue
-      editpoint_file = Path(editpoint_file)
-      if editpoint_file.is_absolute():
-        editpoint_file = editpoint_file.relative_to(harness.llvm_dir)
       fixed_editpoints.append(
-        PatchEditPoint(int(editpoint_start), int(editpoint_end), editpoint_file)
+        PatchEditPoint(int(editpoint_start), int(editpoint_end), Path(editpoint_file))
       )
     except Exception as e:
       console.print(
@@ -713,7 +710,6 @@ def run_opt(
   if bug_type == "crash" and "PLEASE submit a bug report to " in opt_log:
     # Ignore the stack trace from the crash report
     opt_log = opt_log[: opt_log.find("PLEASE submit a bug report to ")]
-  opt_log = harness.sanitize_output(opt_log)
   console.printb(title="Opt Verbose Log", message=f"$ {opt_cmd}\n{opt_log}")
 
   return opt_pass, opt_cmd, opt_log

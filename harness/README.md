@@ -77,11 +77,12 @@ All factory methods accept optional access control parameters:
 
 | Parameter | Type | Default | Description |
 |---|---|---|---|
-| `editable` | `list[str]` | `["llvm/lib", "llvm/include"]` | Glob patterns for editable paths |
-| `readable` | `list[str]` | `["llvm"]` | Glob patterns for readable paths |
-| `ignored` | `list[str]` | `[]` | Glob patterns for ignored paths |
+| `acl_preset` | `str` | `"llvm"` | ACL preset name (`"llvm"` or `"llvm+clang"`) |
+| `extra_editable` | `list[str]` | `[]` | Additional editable path patterns |
+| `extra_readable` | `list[str]` | `[]` | Additional readable path patterns |
+| `extra_ignored` | `list[str]` | `[]` | Additional ignored path patterns |
 
-Patterns use `fnmatch` syntax (`*`, `?`, `[seq]`). A bare directory name (no wildcards) matches everything underneath. Paths under `/tmp/` are always readable and writable.
+Presets define sensible defaults (e.g., `"llvm"` makes `llvm/lib` and `llvm/include` editable, the whole `llvm/` tree readable). `/tmp/` is always readable and writable. The build directory and skills directory are added automatically. Patterns use `fnmatch` syntax (`*`, `?`, `[seq]`). A bare directory name (no wildcards) matches everything underneath.
 
 ## Context Manager
 
@@ -145,10 +146,6 @@ Apply a unified diff patch to the LLVM source tree. Returns `(success, log)`.
 ### `h.git(*args) -> str`
 
 Run a git command in the LLVM source directory.
-
-### `h.sanitize_output(output: str) -> str`
-
-Strip absolute LLVM paths from output for safe display to agents.
 
 ## Debugger
 

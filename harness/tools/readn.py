@@ -16,7 +16,7 @@ class ReadNTool(StatelessFuncToolBase):
           "file",
           "string",
           True,
-          "The relative path to the file to read. The path should start with llvm/.",
+          "The absolute path to the file to read.",
         ),
         FuncToolSpec.Param(
           "position",

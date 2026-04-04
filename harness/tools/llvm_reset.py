@@ -5,21 +5,22 @@ from harness.lms.tool import FuncToolCallException, FuncToolSpec, StatelessFuncT
 
 
 class ResetTool(StatelessFuncToolBase):
-  def __init__(self, acl: AccessControl, base_commit: str):
+  def __init__(self, acl: AccessControl, base_commit: str, git_root: str):
     self.acl = acl
     self.base_commit = base_commit
+    self.git_root = git_root
 
   def spec(self) -> FuncToolSpec:
     return FuncToolSpec(
       "reset",
-      "Restore a file to its original state at the base commit, discarding all local edits. "
+      "Restore an LLVM file to its original state at the base commit, discarding all local edits. "
       "Use this to undo a broken change before trying a different approach.",
       [
         FuncToolSpec.Param(
           "file",
           "string",
           True,
-          "The relative path of the file to edit (starting with llvm/).",
+          "The absolute path of the file to reset.",
         )
       ],
     )
@@ -28,8 +29,7 @@ class ResetTool(StatelessFuncToolBase):
     self.acl.check_editable(file)
     try:
       subprocess.check_call(
-        ["git", "checkout", self.base_commit, file],
-        cwd=self.acl.root,
+        ["git", "-C", self.git_root, "checkout", self.base_commit, file],
       )
     except subprocess.CalledProcessError as e:
       raise FuncToolCallException(

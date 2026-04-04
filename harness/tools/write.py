@@ -18,7 +18,7 @@ class WriteTool(StatelessFuncToolBase):
           "file",
           "string",
           True,
-          "The relative path of the file to write (starting with llvm/).",
+          "The absolute path of the file to write.",
         ),
         FuncToolSpec.Param(
           "content", "string", True, "The content to write to the file."

@@ -35,7 +35,7 @@ class BashTool(StatelessFuncToolBase):
   def spec(self) -> FuncToolSpec:
     return FuncToolSpec(
       "bash",
-      "Execute a shell command in the LLVM source directory. "
+      "Execute a shell command. "
       "Use this for operations not covered by other tools — building the project, running opt/lli/llvm-lit, "
       "piping commands together, or any other shell task. Some commands (git, rm, curl, etc.) are restricted.",
       [
@@ -46,6 +46,12 @@ class BashTool(StatelessFuncToolBase):
           "The bash command to execute.",
         ),
         FuncToolSpec.Param(
+          "cwd",
+          "string",
+          False,
+          "Optional absolute path to use as the working directory for the command.",
+        ),
+        FuncToolSpec.Param(
           "timeout",
           "integer",
           False,
@@ -54,7 +60,9 @@ class BashTool(StatelessFuncToolBase):
       ],
     )
 
-  def _call(self, *, command: str, timeout: int = 60, **kwargs) -> str:
+  def _call(
+    self, *, command: str, cwd: str | None = None, timeout: int = 60, **kwargs
+  ) -> str:
     if not command:
       raise FuncToolCallException(
         "No command provided. Please specify the bash command to execute."
@@ -67,13 +75,16 @@ class BashTool(StatelessFuncToolBase):
           f"You do not have permission to use command `{cmd}`."
         )
 
+    # Validate cwd if provided.
+    work_dir = None
+    if cwd:
+      work_dir = self.acl.check_readable_dir(cwd)
+
     # We use 'bash -c' to ensure full shell support (pipes, redirects, etc.)
     bash_cmd = f"bash -c {shlex.quote(command)}"
 
     try:
-      output = cmdline.getoutput(
-        bash_cmd, cwd=self.acl.root, check=True, timeout=timeout
-      )
+      output = cmdline.getoutput(bash_cmd, cwd=work_dir, check=True, timeout=timeout)
       return output.decode("utf-8")
     except CalledProcessError as e:
       # If the command failed, return the combined output and error message.

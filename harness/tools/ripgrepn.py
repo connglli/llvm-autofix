@@ -27,10 +27,16 @@ class RipgrepNTool(StatelessFuncToolBase):
           True,
           "The arguments including options, patterns, and files to ripgrep. NOTICE, ensure the pattern to search is wrapped in single quotes (i.e., '...'), e.g., `-n -w '^[A-Z]+_SUSPEND'`",
         ),
+        FuncToolSpec.Param(
+          "directory",
+          "string",
+          True,
+          "The absolute path to the base directory to search in.",
+        ),
       ],
     )
 
-  def _call(self, *, k: int, args: str, **kwargs) -> str:
+  def _call(self, *, k: int, args: str, directory: str, **kwargs) -> str:
     if k < 1:
       raise FuncToolCallException(
         f"The index k must be a positive integer, but {k} was given."
@@ -39,8 +45,9 @@ class RipgrepNTool(StatelessFuncToolBase):
       raise FuncToolCallException(
         "No arguments provided. Please specify the pattern and files to search."
       )
+    search_dir = self.acl.check_readable_dir(directory)
     try:
-      result = cmdline.check_output(f"rg {args}", cwd=self.acl.root)
+      result = cmdline.check_output(f"rg {args}", cwd=search_dir)
       lines = result.decode("utf-8").strip().splitlines(keepends=True)
     except CalledProcessError as e:
       if e.returncode == 1:

@@ -12,7 +12,6 @@ from tenacity import (
   wait_random_exponential,
 )  # for exponential backoff
 
-from harness.llvm.intern.llvm import remove_path_from_output
 from harness.lms.skill import SkillTool, load_skill
 from harness.lms.tool import FuncToolBase, ToolRegistry
 from harness.utils.console import get_boxed_console
@@ -194,12 +193,10 @@ class AgentBase:
     self.history = []
 
   def append_system_message(self, content: str):
-    content = remove_path_from_output(content)
     self.history.append(ChatMessageMessage(role="system", content=content))
     self.console.printb(title="System", message=content)
 
   def append_user_message(self, content: str):
-    content = remove_path_from_output(content)
     self.history.append(ChatMessageMessage(role="user", content=content))
     self.console.printb(title="User", message=content)
 
@@ -226,7 +223,7 @@ class AgentBase:
   def perform_tool_call(self, tool_name: str, tool_args: dict) -> str:
     MAX_TOOL_CALL_OUTPUT_LINES = 500
     MAX_TOOL_CALL_OUTPUT_CHARS = 15000
-    res = remove_path_from_output(self.tools.call(tool_name, **tool_args))
+    res = self.tools.call(tool_name, **tool_args)
     lines = res.splitlines()
     if len(lines) > MAX_TOOL_CALL_OUTPUT_LINES or len(res) > MAX_TOOL_CALL_OUTPUT_CHARS:
       fd, path = tempfile.mkstemp(suffix=".txt", prefix=f"toolcall_{tool_name}_")

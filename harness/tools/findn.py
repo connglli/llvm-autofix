@@ -25,7 +25,7 @@ class FindNTool(StatelessFuncToolBase):
           "directory",
           "string",
           True,
-          "Find files in this directory (a relative path starting with llvm/).",
+          "The absolute path to the directory to search in.",
         ),
       ],
     )
@@ -42,11 +42,11 @@ class FindNTool(StatelessFuncToolBase):
       raise FuncToolCallException(f"Failed to find files with pattern {pattern}. {e}")
     if not results:
       return f"No files found matching the pattern {pattern}."
-    results = [f"{path}" for path in results if (dir_full_path / path).is_file()]
-    # Filter out ignored paths.
     results = [
-      r for r in results if not self.acl.is_ignored(f"{directory.rstrip('/')}/{r}")
+      str(dir_full_path / path) for path in results if (dir_full_path / path).is_file()
     ]
+    # Filter out ignored paths.
+    results = [r for r in results if not self.acl.is_ignored(r)]
     results.sort()  # Sort the results alphabetically
     k -= 1  # Convert to 0-based index
     if k >= len(results):
