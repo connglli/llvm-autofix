@@ -17,6 +17,10 @@ from harness.lms.skill import SkillTool, load_skill
 from harness.lms.tool import FuncToolBase, ToolRegistry
 from harness.utils.console import get_boxed_console
 
+# ---------------------------------------------------------------------------
+# Agent messages
+# ---------------------------------------------------------------------------
+
 
 @dataclass
 class ChatMessage:
@@ -47,16 +51,44 @@ class ChatMessageFunctionCallOutput(ChatMessage):
   type: str = "function_call_output"
 
 
-# Input: response content
-# Output: (flag, content)
-# If flag is True, the content is passed as user prompt for the next round.
-# Otherwise, the content is returned as the final output.
-ResponseHandler = Callable[[str], Tuple[bool, str]]
-# Input: (tool name, tool arguments, tool result)
-# Output: (flag, content)
-# If flag is True, the content is passed to the assistant.
-# Otherwise, the content is returned as the final output.
-ToolUseHandler = Callable[[str, str, str], Tuple[bool, str]]
+# ---------------------------------------------------------------------------
+# Agent hooks
+# ---------------------------------------------------------------------------
+
+# TODO: Add pre-hooks for intercepting before processing
+# # pre_response(content) -> Optional[str]
+# #   Return None to proceed normally, or a replacement string to use instead.
+# PreResponseHook = Callable[[str], Optional[str]]
+# # pre_tool_call(name, args_dict) -> Tuple[bool, Optional[dict]]
+# #   Return (True, args) to proceed (args may be modified), or
+# #   (False, None) to skip the call (an error is fed back to the model).
+# PreToolCallHook = Callable[[str, dict], Tuple[bool, Optional[dict]]]
+
+# post_response(content) -> Tuple[bool, str]
+#   If flag is True, content is passed as user prompt for the next round.
+#   Otherwise, content is returned as the final output (stops the loop).
+PostResponseHook = Callable[[str], Tuple[bool, str]]
+# post_tool_call(name, args_json, result) -> Tuple[bool, str]
+#   If flag is True, content is passed to the assistant.
+#   Otherwise, content is returned as the final output (stops the loop).
+PostToolCallHook = Callable[[str, str, str], Tuple[bool, str]]
+
+
+@dataclass
+class AgentHooks:
+  """Hooks for customizing agent loop behavior."""
+
+  post_response: PostResponseHook
+  post_tool_call: PostToolCallHook
+
+  # TODO: Add pre-hooks for intercepting before processing
+  # pre_response: Optional[PreResponseHook] = None
+  # pre_tool_call: Optional[PreToolCallHook] = None
+
+
+# ---------------------------------------------------------------------------
+# Agent framework
+# ---------------------------------------------------------------------------
 
 
 class ReachRoundLimit(StopIteration):
@@ -148,8 +180,7 @@ class AgentBase:
   def run(
     self,
     activated_tools: List[str],
-    response_handler: ResponseHandler,
-    tool_call_handler: ToolUseHandler,
+    hooks: AgentHooks,
   ) -> str:
     """
     Call to LLMs and execute all function calls until the model stops.
@@ -291,17 +322,20 @@ class AgentBase:
       activated_tools = self.tools.list()
       done_result = [None]
 
-      def response_handler(_: str):
+      def post_response(_: str):
         return True, "Please continue. Call the `skill_done` tool when finished."
 
-      def tool_call_handler(name: str, _: str, result: str):
+      def post_tool_call(name: str, _: str, result: str):
         if name == "skill_done":
           done_result[0] = result
           return False, result
         return True, result
 
       try:
-        self.run(activated_tools, response_handler, tool_call_handler)
+        self.run(
+          activated_tools,
+          AgentHooks(post_response=post_response, post_tool_call=post_tool_call),
+        )
       except (ReachRoundLimit, ReachTokenLimit):
         pass  # Budget exhausted
 

@@ -7,14 +7,13 @@ from openai import NOT_GIVEN, OpenAI
 
 from harness.lms.agent import (
   AgentBase,
+  AgentHooks,
   ChatMessageFunctionCall,
   ChatMessageFunctionCallOutput,
   ChatMessageMessage,
   ReachRoundLimit,
   ReachTokenLimit,
   ReasoningEffort,
-  ResponseHandler,
-  ToolUseHandler,
 )
 
 
@@ -90,8 +89,7 @@ class GPTAgent(AgentBase):
   def run(
     self,
     activated_tools: List[str],
-    response_handler: ResponseHandler,
-    tool_call_handler: ToolUseHandler,
+    hooks: AgentHooks,
   ) -> str:
     while self.round_limit <= 0 or self.chat_stats["chat_rounds"] <= self.round_limit:
       self.console.print(
@@ -132,7 +130,7 @@ class GPTAgent(AgentBase):
       if not response.tool_calls:
         # Handle normal response
         self.append_assistant_message(response.content)
-        cont_exec, content = response_handler(response.content)
+        cont_exec, content = hooks.post_response(response.content)
         if cont_exec:
           self.append_user_message(content)
           continue
@@ -142,15 +140,15 @@ class GPTAgent(AgentBase):
       # Handle tool calls
       for tool_call in response.tool_calls:
         name = tool_call.function.name
-        args = tool_call.function.arguments
+        args_text = tool_call.function.arguments
+        arguments = json.loads(args_text)
         self.append_function_tool_call(
           call_id=tool_call.id,
           name=name,
-          arguments=args,
+          arguments=args_text,
         )
-        arguments = json.loads(args)
         result = self.perform_tool_call(name, arguments)
-        cont_exec, result = tool_call_handler(name, args, result)
+        cont_exec, result = hooks.post_tool_call(name, args_text, result)
         if not cont_exec:
           self.append_user_message(result)
           return result

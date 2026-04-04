@@ -15,7 +15,7 @@ from harness.llvm import (
   Reproducer,
 )
 from harness.llvm.debugger import DebuggerBase, StackTrace
-from harness.lms.agent import AgentBase
+from harness.lms.agent import AgentBase, AgentHooks
 from harness.lms.tool import FuncToolBase, FuncToolCallException, FuncToolSpec
 from harness.utils.console import get_boxed_console
 
@@ -371,8 +371,7 @@ def patch_and_fix(
 
   return agent.run(
     ENABLED_REPAIR_TOOLS,
-    response_handler=response_callback,
-    tool_call_handler=tool_call_callback,
+    AgentHooks(post_response=response_callback, post_tool_call=tool_call_callback),
   )
 
 
@@ -523,8 +522,7 @@ def run_mini_agent(
 
   response = agent.run(
     ENABLED_REASON_TOOLS,
-    response_handler=response_handler,
-    tool_call_handler=tool_call_handler,
+    AgentHooks(post_response=response_handler, post_tool_call=tool_call_handler),
   )
 
   # Parse the response to get potential edit points

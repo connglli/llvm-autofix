@@ -7,12 +7,11 @@ from anthropic import Anthropic, omit
 
 from harness.lms.agent import (
   AgentBase,
+  AgentHooks,
   ChatMessageMessage,
   ReachRoundLimit,
   ReachTokenLimit,
   ReasoningEffort,
-  ResponseHandler,
-  ToolUseHandler,
 )
 
 
@@ -54,8 +53,7 @@ class ClaudeAgent(AgentBase):
   def run(
     self,
     activated_tools: List[str],
-    response_handler: ResponseHandler,
-    tool_call_handler: ToolUseHandler,
+    hooks: AgentHooks,
   ) -> str:
     messages = []
     for message in self.history:
@@ -115,7 +113,7 @@ class ClaudeAgent(AgentBase):
               arguments=args_text,
             )
             result = self.perform_tool_call(name, args)
-            cont_exec, result = tool_call_handler(name, args_text, result)
+            cont_exec, result = hooks.post_tool_call(name, args_text, result)
             if not cont_exec:
               self.append_user_message(result)
               return result
@@ -133,8 +131,9 @@ class ClaudeAgent(AgentBase):
               }
             )
       elif response.stop_reason == "stop_sequence":
-        self.append_assistant_message(response.content[0].text)
-        cont_exec, content = response_handler(response.content[0].text)
+        text = response.content[0].text
+        self.append_assistant_message(text)
+        cont_exec, content = hooks.post_response(text)
         if cont_exec:
           self.append_user_message(content)
           messages.append(

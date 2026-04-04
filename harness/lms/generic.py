@@ -7,14 +7,13 @@ import json_repair
 
 from harness.lms.agent import (
   AgentBase,
+  AgentHooks,
   ChatMessageFunctionCall,
   ChatMessageFunctionCallOutput,
   ChatMessageMessage,
   ReachRoundLimit,
   ReachTokenLimit,
   ReasoningEffort,
-  ResponseHandler,
-  ToolUseHandler,
 )
 from harness.lms.tool import FuncToolBase
 
@@ -110,8 +109,7 @@ class GenericAgent(AgentBase):
   def run(
     self,
     activated_tools: List[str],
-    response_handler: ResponseHandler,
-    tool_call_handler: ToolUseHandler,
+    hooks: AgentHooks,
   ) -> str:
     # TODO: Avoid changing tool instructions for better prompt caching performance.
     remaining_tools = self._get_remaining_tools_from(activated_tools)
@@ -157,14 +155,14 @@ class GenericAgent(AgentBase):
 
       # Handle tool call
       if TOOL_CALL_BEGIN_TAG in answer_content:
-        result = self._handle_tool_call(answer_content, tool_call_handler)
+        result = self._handle_tool_call(answer_content, hooks)
         if result:
           return result
         continue
 
       # Handle normal response
       self.append_assistant_message(answer_content)
-      cont_exec, result = response_handler(answer_content)
+      cont_exec, result = hooks.post_response(answer_content)
       self.append_user_message(
         result
       )  # Append the message in case the user may continue to run the agent
@@ -178,7 +176,7 @@ class GenericAgent(AgentBase):
     """Complete the chat with the given messages and return reasoning and answer content."""
     ...
 
-  def _handle_tool_call(self, content, tool_call_handler) -> Optional[str]:
+  def _handle_tool_call(self, content, hooks: AgentHooks) -> Optional[str]:
     content = content.strip()
 
     matches = TOOL_CALL_PATTERN.findall(content)
@@ -258,7 +256,7 @@ class GenericAgent(AgentBase):
     )
 
     result = self.perform_tool_call(tool_name, tool_args)
-    cont_exec, result = tool_call_handler(tool_name, tool_args_text, result)
+    cont_exec, result = hooks.post_tool_call(tool_name, tool_args_text, result)
     if not cont_exec:
       self.append_user_message(result)
       return result  # Stop the agent execution and return the result
