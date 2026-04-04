@@ -398,11 +398,11 @@ class Harness:
     target_path.mkdir(exist_ok=True)
 
     target_skill_path = target_path / name
-    if target_skill_path.exists() and not exists_ok:
-      raise FileExistsError(
-        f"Target skill path {target_skill_path} already exists. Set exists_ok=True to overwrite."
-      )
-    if target_skill_path.exists() and exists_ok:
+    if target_skill_path.exists():
+      if not exists_ok:
+        raise FileExistsError(
+          f"Target skill path {target_skill_path} already exists. Set exists_ok=True to overwrite."
+        )
       if target_skill_path.is_symlink() or target_skill_path.is_file():
         target_skill_path.unlink()
       elif target_skill_path.is_dir():
@@ -499,10 +499,11 @@ class Harness:
 
     Raises :class:`KeyError` if the tool is not available.
     """
-    for tool in self.make_tools():
+    tools = self.make_tools()
+    for tool in tools:
       if tool.name() == name:
         return tool
-    available = [t.name() for t in self.make_tools()]
+    available = [t.name() for t in tools]
     raise KeyError(
       f"Tool {name!r} not available. Available tools: {', '.join(available)}"
     )

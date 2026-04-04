@@ -81,7 +81,7 @@ def render_xcli_command(
   prompt: str,
   session: Optional[str] = None,
   model: Optional[str] = None,
-) -> str:
+) -> tuple[str, str]:
   if xcli == "claudecode":
     model_arg = f"--model {model}" if model else ""
     session_arg = f"--session-id {session}" if session else ""

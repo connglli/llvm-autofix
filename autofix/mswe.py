@@ -120,7 +120,7 @@ class MyEnvironment(LocalEnvironment):
     for cmd in FORBIDDEN_TOOLS:
       shim_content += f"""
 {cmd}() {{
-  echo "Error: You do not have perssion to access the command '{cmd}'."
+  echo "Error: You do not have permission to access the command '{cmd}'."
   return 1
 }}
 """

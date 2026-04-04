@@ -65,7 +65,7 @@ ENABLED_REASON_TOOLS = {
   "report",
 }
 ENABLED_REPAIR_TOOLS = {
-  # Exlore codebase tools
+  # Explore codebase tools
   "list",
   "read",
   "find",
@@ -372,7 +372,7 @@ class ReportRootCauseTool(FuncToolBase):
         )
       if end_line - start_line + 1 < self.min_edit_point_lines:
         raise FuncToolCallException(
-          f"An edit point must be at least 5 lines long, got {end_line - start_line + 1} lines at edit_points[{ind}]: {edit}"
+          f"An edit point must be at least {self.min_edit_point_lines} lines long, got {end_line - start_line + 1} lines at edit_points[{ind}]: {edit}"
         )
       fixed_edit.append(end_line)
       try:

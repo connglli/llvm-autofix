@@ -64,70 +64,71 @@ class LlvmCode:
     CXX_LANGUAGE = Language(tree_sitter_cpp.language())
     self.cxx_parser = Parser(CXX_LANGUAGE)
 
+  _USEFUL_ANALYSIS_PASSES = {
+    "print<scalar-evolution>": [
+      "constraint-elimination",
+      "irce",
+      "indvars",
+      "licm",
+      "loop-delete",
+      "loop-distribute",
+      "loop-flatten",
+      "loop-fusion",
+      "loop-idiom",
+      "loop-interchange",
+      "loop-load-elim",
+      "loop-predication",
+      "loop-rotate",
+      "loop-simplifycfg",
+      "loopsink",
+      "loop-reduce",
+      "loop-term-fold",
+      "loop-unroll-and-jam",
+      "loop-unroll",
+      "loop-versioning-licm",
+      "nary-reassociate",
+      "simple-loop-unswitch",
+      "canon-freeze",
+      "lcssa",
+      "loop-constrainer",
+      "loop-peel",
+      "loop-simplify",
+      "load-store-vectorizer",
+      "loop-vectorize",
+      "slp-vectorizer",
+    ],
+    "aa-eval": [
+      "aggressive-instcombine",
+      "coro-elide",
+      "instcombine",
+      "inline",
+      "dse",
+      "flatten-cfg",
+      "gvn",
+      "gvn-hoist",
+      "jump-threading",
+      "licm",
+      "loop-idiom",
+      "loop-predication",
+      "loop-versioning",
+      "memcpyopt",
+      "mergeicmps",
+      "newgvn",
+      "tailcallelim",
+      "load-store-vectorizer",
+    ],
+  }
+
   def resolve_pass_name(self, args: str) -> Tuple[str, List[str]]:
     """Resolve the pass name(s) of the given llvm file"""
     # TODO: Support more closely-bound analysis passes
     pos = args.find("passes=")
     next = args.find(" ", pos)
     pass_name = args[pos + 7 : next]
-    USEFUL_ANALYSIS_PASSES = {
-      "print<scalar-evolution>": [
-        "constraint-elimination",
-        "irce",
-        "indvars",
-        "licm",
-        "loop-delete",
-        "loop-distribute",
-        "loop-flatten",
-        "loop-fusion",
-        "loop-idiom",
-        "loop-interchange",
-        "loop-load-elim",
-        "loop-predication",
-        "loop-rotate",
-        "loop-simplifycfg",
-        "loopsink",
-        "loop-reduce",
-        "loop-term-fold",
-        "loop-unroll-and-jam",
-        "loop-unroll",
-        "loop-versioning-licm",
-        "nary-reassociate",
-        "simple-loop-unswitch",
-        "canon-freeze",
-        "lcssa",
-        "loop-constrainer",
-        "loop-peel",
-        "loop-simplify",
-        "load-store-vectorizer",
-        "loop-vectorize",
-        "slp-vectorizer",
-      ],
-      "aa-eval": [
-        "aggressive-instcombine",
-        "coro-elide",
-        "instcombine",
-        "inline",
-        "dse",
-        "flatten-cfg",
-        "gvn",
-        "gvn-hoist",
-        "jump-threading",
-        "licm",
-        "loop-idiom",
-        "loop-predication",
-        "loop-versioning",
-        "memcpyopt",
-        "mergeicmps",
-        "newgvn",
-        "tailcallelim",
-        "load-store-vectorizer",
-      ],
-    }
 
     analysis_passes = []
 
-    for name, keys in USEFUL_ANALYSIS_PASSES.items():
+    for name, keys in self._USEFUL_ANALYSIS_PASSES.items():
       for key in keys:
         if key in pass_name:
           analysis_passes.append(name)
