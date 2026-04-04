@@ -163,15 +163,17 @@ class MyAgent(DefaultAgent):
   def _test_submission(self) -> Optional[str]:
     # Save the test trajectory
     patch = self.harness.fixenv.dump_patch()
-    self.stats.test_traj.append(patch)
     try:
       res = self.tester.call()
     except FuncToolCallException as e:
+      self.stats.test_traj.append((patch, False))
       return f"FAILURE\n\n{e}"  # Return the error message
     if res == "<success>":
       # We are successful, save the patch
+      self.stats.test_traj.append((patch, True))
       self.stats.patch = patch
       return None  # Success
+    self.stats.test_traj.append((patch, False))
     return res  # Return the error message
 
   def execute_action(self, action: dict) -> dict:

@@ -137,7 +137,7 @@ class AccessControl:
 
   def describe(self) -> str:
     """Render access rules as human-readable text for prompt injection."""
-    lines = [f"Editable paths: {', '.join(self.editable)}"]
+    lines = [f"Editable paths: {', '.join(self.editable)}, /tmp"]
     lines.append(f"Readable paths: {', '.join(self.readable)}")
     if self.ignored:
       lines.append(f"Ignored paths: {', '.join(self.ignored)}")

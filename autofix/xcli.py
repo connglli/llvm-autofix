@@ -71,14 +71,16 @@ def start_test_server(harness: Harness, stats: RunStats):
 
   def do_test():
     patch = harness.fixenv.dump_patch()
-    stats.test_traj.append(patch)
     try:
       res = tester.call()
     except FuncToolCallException as e:
+      stats.test_traj.append((patch, False))
       return f"FAILURE\n\n{e}"
     if res == "<success>":
+      stats.test_traj.append((patch, True))
       stats.patch = patch
       return "SUCCESS"
+    stats.test_traj.append((patch, False))
     return res
 
   class Handler(BaseHTTPRequestHandler):

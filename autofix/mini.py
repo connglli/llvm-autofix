@@ -60,7 +60,7 @@ ENABLED_REASON_TOOLS = {
   "debug",
   "eval",
   # Report tool to finish the analysis
-  "report",
+  "submit_analysis",
 }
 ENABLED_REPAIR_TOOLS = {
   # Explore codebase tools
@@ -86,12 +86,15 @@ ENABLED_REPAIR_TOOLS = {
   "compile_ir",
   # Patch review skill
   "llvm-patchreview",
+  # Report tool to submit a patch report
+  "submit_patchreport",
 }
 ENABLED_TOOLS = ENABLED_REASON_TOOLS | ENABLED_REPAIR_TOOLS
 EDIT_AND_TEST_TOOLS = {"edit", "reset", "test"}
 GET_CONTEXT_TOOLS = ENABLED_TOOLS - EDIT_AND_TEST_TOOLS
 # Enabled skills: only list skills
 ENABLED_SKILLS = {"llvm-patchreview"}
+HAS_REVIEW_SKILL = "llvm-patchreview" in ENABLED_SKILLS
 
 # - ================================================
 # - LLVM settings
@@ -184,15 +187,12 @@ class RunStats:
     default_factory=lambda *_, **__: [("<not-provided>", -1, -1)]
   )
   reasoning: str = "<not-provided>"
-  test_traj: List[str] = field(
+  test_traj: List[Tuple[str, bool]] = field(
     default_factory=list
-  )  # Trajectories of patches ever tried during testing
-  rev_traj: List[str] = field(
+  )  # Trajectories of (patch, passed?) for each test call
+  rev_traj: List[Tuple[str, str]] = field(
     default_factory=list
-  )  # Trajectories of patches submitted for review
-  rep_traj: List[str] = field(
-    default_factory=list
-  )  # Trajectories of review reports for reviewed patches
+  )  # Trajectories of (patch, verdict) for each review call; verdict is APPROVE/REVISE/REJECT/UNKNOWN
   patch_report: Optional[str] = (
     None  # Final patch report (root cause + fix explanation)
   )
@@ -239,25 +239,19 @@ def ensure_tools_available(agent: AgentBase, tools: List[str]):
     raise ReachToolBudget(f"Tools [{', '.join(unavailable_tools)}] are out of budget.")
 
 
-EDIT_POINT_FORMAT = """\
+_EDITPOINT_FORMAT = """\
 ```cpp
 // {file}:{start}-{end}
 {code}
 ```\
 """
 
-
-_REVIEW_FORMAT_ERROR = (
-  "Error: The review report must be valid Markdown with YAML frontmatter "
-  "containing a `verdict` field (APPROVE, REVISE, or REJECT). "
-  "Output ONLY the report — no surrounding explanations or ```markdown fences. "
-  "Expected format:\n\n"
-  "---\n"
-  "verdict: APPROVE | REVISE | REJECT\n"
-  "---\n\n"
-  "# Patch Review Report\n"
-  "..."
-)
+# Review verdicts
+_VERDICT_APPROVE = "APPROVE"
+_VERDICT_REVISE = "REVISE"
+_VERDICT_REJECT = "REJECT"
+_VERDICT_UNKNOWN = "UNKNOWN"
+_VALID_VERDICTS = {_VERDICT_APPROVE, _VERDICT_REVISE, _VERDICT_REJECT}
 
 
 def _parse_review_verdict(report: str) -> Optional[str]:
@@ -270,16 +264,15 @@ def _parse_review_verdict(report: str) -> Optional[str]:
   start = report.find("---")
   if start == -1:
     return None  # No frontmatter start found
-  end = report.find("---", 3)
+  end = report.find("---", start + 3)
   if end == -1:
     return None  # No frontmatter end found
-
   try:
-    header = yaml.safe_load(report[3:end])
+    header = yaml.safe_load(report[start + 3 : end])
     if not isinstance(header, dict):
       return None  # Invalid frontmatter format
     verdict = str(header.get("verdict", "")).strip().upper()
-    if verdict in ("APPROVE", "REVISE", "REJECT"):
+    if verdict in _VALID_VERDICTS:
       return verdict
     return None  # Unknown verdict value
   except Exception:
@@ -309,7 +302,7 @@ def patch_and_fix(
   for ep in edit_points:
     try:
       formatted_edit_points.append(
-        EDIT_POINT_FORMAT.format(
+        _EDITPOINT_FORMAT.format(
           file=ep.file,
           start=ep.start,
           end=ep.end,
@@ -340,7 +333,6 @@ def patch_and_fix(
   # The model drives the repair-review cycle autonomously:
   # it edits, tests, calls llvm-patchreview, revises if needed, and
   # only submits once the reviewer approves.
-  has_review_skill = any(sk.name in ENABLED_SKILLS for sk in harness.get_skills())
 
   def response_callback(_: str) -> Tuple[bool, str]:
     ensure_tools_available(agent, ["test", "edit"])
@@ -352,21 +344,49 @@ def patch_and_fix(
       " If you already called the `test` tool, please check the feedback, adjust the patch, and try again."
     )
 
+  def _latest_test_passed() -> bool:
+    return bool(stats.test_traj) and stats.test_traj[-1][1]
+
+  def _latest_review_approved() -> bool:
+    """True only if the last review approved the current patch."""
+    if not stats.rev_traj:
+      return False
+    rev_patch, verdict = stats.rev_traj[-1]
+    cur_patch = fixenv.dump_patch()
+    return verdict == _VERDICT_APPROVE and rev_patch == cur_patch
+
   def tool_call_callback(name: str, _: str, res: str) -> Tuple[bool, str]:
     ensure_tools_available(agent, ["test", "edit"])
     if name == "test":
       patch = fixenv.dump_patch()
-      stats.test_traj.append(patch)
-      if res == "<success>" and not has_review_skill:
+      passed = res == "<success>"
+      stats.test_traj.append((patch, passed))
+      # New test invalidates prior review (rev_traj tracks patch-verdict pairs,
+      # so _latest_review_approved() naturally returns False after a new test
+      # only if the review was for a different patch).
+      if passed and not HAS_REVIEW_SKILL:
         return False, patch  # No review skill — stop on test success
     elif name == "llvm-patchreview":
-      patch = fixenv.dump_patch()
-      stats.rev_traj.append(patch)
-      stats.rep_traj.append(res)
-      verdict = _parse_review_verdict(res)
-      if verdict == "APPROVE":
-        stats.patch_report = res
-        return False, patch  # Stop on review approval
+      verdict = _parse_review_verdict(res) or _VERDICT_UNKNOWN
+      stats.rev_traj.append((fixenv.dump_patch(), verdict))
+    elif name == "submit_patchreport":
+      if not _latest_test_passed():
+        return (
+          True,
+          "Error: cannot submit — "
+          "the latest test did not pass or you didn't test. "
+          "Run `test` first.",
+        )
+      if HAS_REVIEW_SKILL and not _latest_review_approved():
+        return (
+          True,
+          "Error: cannot submit — "
+          "the latest review did not approve the patch or "
+          "you didn't apply for patch review for the latest patch. "
+          "Call `llvm-patchreview` first.",
+        )
+      stats.patch_report = res
+      return False, fixenv.dump_patch()
     return True, res
 
   return agent.run(
@@ -375,15 +395,15 @@ def patch_and_fix(
   )
 
 
-class ReportRootCauseTool(FuncToolBase):
+class SubmitAnalysisTool(FuncToolBase):
   def __init__(self, acl: AccessControl, min_edit_point_lines: int):
     self.acl = acl
     self.min_edit_point_lines = min_edit_point_lines
 
   def spec(self) -> FuncToolSpec:
     return FuncToolSpec(
-      "report",
-      "Stop process and report the found edit points for fixing the issue",
+      "submit_analysis",
+      "Stop analysis and report the found edit points for fixing the issue",
       [
         FuncToolSpec.Param(
           "edit_points",
@@ -406,7 +426,9 @@ class ReportRootCauseTool(FuncToolBase):
       ],
     )
 
-  def _call(self, *, edit_points: list[tuple[int, int, str]], thoughts: str) -> str:
+  def _call(
+    self, *, edit_points: list[tuple[int, int, str]], thoughts: str, **kwargs
+  ) -> str:
     # Check and fix the model-provided edit points
     fixed_edit_points = []
     for ind, edit in enumerate(edit_points):
@@ -458,6 +480,32 @@ class ReportRootCauseTool(FuncToolBase):
     )
 
 
+class SubmitPatchReportTool(FuncToolBase):
+  def spec(self) -> FuncToolSpec:
+    return FuncToolSpec(
+      "submit_patchreport",
+      "Submit a patch report explaining the original bug's root cause and how it was fixed in the patch. "
+      "Call this only after the patch has been approved by the reviewer.",
+      [
+        FuncToolSpec.Param(
+          "report",
+          "string",
+          True,
+          'A concise report in Markdown titled "Patch Report" covering three sections:'
+          "(1) Overview: an overview of the issue, the root cause, and the fix; "
+          "(2) Root Cause Analysis: the original bug and its root cause; "
+          "(3) Fix Explanation: how the patch fixes it, and why the fix is correct. "
+          "(4) Experiences: experiences (and pitfalls/patterns) gained from the bug and the fix. ",
+        ),
+      ],
+    )
+
+  def _call(self, *, report: str, **kwargs) -> str:
+    if not report or not report.strip():
+      raise FuncToolCallException("The patch report must not be empty.")
+    return report
+
+
 def run_mini_agent(
   rep: Reproducer,
   *,
@@ -500,18 +548,18 @@ def run_mini_agent(
   )
 
   def response_handler(_: str) -> Tuple[bool, str]:
-    ensure_tools_available(agent, ["report"])
+    ensure_tools_available(agent, ["submit_analysis"])
     return True, (
       "Error: You are not calling any tool or your tool call format is incorrect. "
       "You should always continue with tool calling and correct tool call format. "
       "Please continue."
-      " If you are done, call the `report` tool with the edit points."
-      " If you already called the `report` tool, please check the format and try again."
+      " If you are done, call the `submit_analysis` tool with the edit points."
+      " If you already called the `submit_analysis` tool, please check the format and try again."
     )
 
   def tool_call_handler(name: str, _: str, res: str) -> Tuple[bool, str]:
-    ensure_tools_available(agent, ["report"])
-    if name != "report":
+    ensure_tools_available(agent, ["submit_analysis"])
+    if name != "submit_analysis":
       return True, res  # Continue the process
     try:
       # The report tool returns a parseable JSON string
@@ -689,10 +737,11 @@ def get_enabled_tools(harness: Harness):
     else:
       panic(f"Tool {name} does not have a defined tool call limit.")
 
-  # Agent-specific: report tool.
+  # Agent-specific: report tools.
   tools.append(
-    (ReportRootCauseTool(harness.acl, MIN_EDIT_POINT_LINES), MAX_TCS_GET_CONTEXT)
+    (SubmitAnalysisTool(harness.acl, MIN_EDIT_POINT_LINES), MAX_TCS_GET_CONTEXT)
   )
+  tools.append((SubmitPatchReportTool(), MAX_TCS_GET_CONTEXT))
 
   return tools
 
