@@ -1,8 +1,8 @@
 from harness.llvm.intern.lab_env import FixEnv
-from harness.lms.tool import FuncToolBase, FuncToolCallException, FuncToolSpec
+from harness.lms.tool import FuncToolCallException, FuncToolSpec, StatelessFuncToolBase
 
 
-class LangRefTool(FuncToolBase):
+class LangRefTool(StatelessFuncToolBase):
   def __init__(self, env: FixEnv):
     self.env = env
 

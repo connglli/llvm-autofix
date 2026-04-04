@@ -1,8 +1,8 @@
-from harness.lms.tool import FuncToolBase, FuncToolSpec
+from harness.lms.tool import FuncToolSpec, StatelessFuncToolBase
 from harness.utils.console import get_boxed_console
 
 
-class AskQuestionTool(FuncToolBase):
+class AskQuestionTool(StatelessFuncToolBase):
   def __init__(self):
     self.console = get_boxed_console(box_title="Agent Question", debug_mode=True)
 

@@ -1,11 +1,11 @@
 from pathlib import Path
 from subprocess import CalledProcessError
 
-from harness.lms.tool import FuncToolBase, FuncToolCallException, FuncToolSpec
+from harness.lms.tool import FuncToolCallException, FuncToolSpec, StatelessFuncToolBase
 from harness.utils import cmdline
 
 
-class GrepNTool(FuncToolBase):
+class GrepNTool(StatelessFuncToolBase):
   def __init__(self, llvm_dir: str, n: int):
     self.llvm_dir = Path(llvm_dir).resolve().absolute()
     self.n = n

@@ -1,10 +1,10 @@
 import subprocess
 
 from harness.llvm.access import AccessControl
-from harness.lms.tool import FuncToolBase, FuncToolCallException, FuncToolSpec
+from harness.lms.tool import FuncToolCallException, FuncToolSpec, StatelessFuncToolBase
 
 
-class ResetTool(FuncToolBase):
+class ResetTool(StatelessFuncToolBase):
   def __init__(self, acl: AccessControl, base_commit: str):
     self.acl = acl
     self.base_commit = base_commit

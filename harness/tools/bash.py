@@ -2,7 +2,7 @@ import shlex
 from subprocess import CalledProcessError
 
 from harness.llvm.access import AccessControl
-from harness.lms.tool import FuncToolBase, FuncToolCallException, FuncToolSpec
+from harness.lms.tool import FuncToolCallException, FuncToolSpec, StatelessFuncToolBase
 from harness.utils import bashlex, cmdline
 
 # TODO: add other tools that do not require permission
@@ -28,7 +28,7 @@ FORBIDDEN_TOOLS = [
 ]
 
 
-class BashTool(FuncToolBase):
+class BashTool(StatelessFuncToolBase):
   def __init__(self, acl: AccessControl):
     self.acl = acl
 

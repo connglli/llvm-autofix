@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING, List
 
 import yaml
 
-from harness.lms.tool import FuncToolBase, FuncToolSpec
+from harness.lms.tool import FuncToolSpec, StatelessFuncToolBase
 
 if TYPE_CHECKING:
   from harness.lms.generic import GenericAgent
@@ -31,7 +31,7 @@ class Skill:
   )
 
 
-class DoneTool(FuncToolBase):
+class DoneTool(StatelessFuncToolBase):
   """Special tool that signals skill sub-loop termination."""
 
   def spec(self) -> FuncToolSpec:
@@ -52,7 +52,7 @@ class DoneTool(FuncToolBase):
     return result
 
 
-class SkillTool(FuncToolBase):
+class SkillTool(StatelessFuncToolBase):
   """Wraps a Skill as a FuncToolBase so it can be called like any other tool."""
 
   def __init__(self, skill: Skill, agent: GenericAgent, inject_materials: bool = False):

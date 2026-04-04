@@ -3,11 +3,11 @@ from pathlib import Path
 
 from harness.llvm.debugger import DebuggerBase
 from harness.llvm.intern.llvm_code import LlvmCode
-from harness.lms.tool import FuncToolBase, FuncToolCallException, FuncToolSpec
+from harness.lms.tool import FuncToolCallException, FuncToolSpec, StatelessFuncToolBase
 
 
 # TODO: There is a chance that a function is excessively long
-class CodeTool(FuncToolBase):
+class CodeTool(StatelessFuncToolBase):
   def __init__(self, llvm: LlvmCode, debugger: DebuggerBase):
     self.llvm = llvm
     self.debugger = debugger

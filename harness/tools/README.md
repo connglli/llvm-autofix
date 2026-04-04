@@ -1,14 +1,19 @@
 # Tools
 
-Tools are callable functions exposed to the agent. Each tool is a Python class that inherits from `FuncToolBase` and describes itself via a `FuncToolSpec`.
+Tools are callable functions exposed to the agent. Each tool is a Python class that describes itself via a `FuncToolSpec`. Tools come in two flavors:
 
-## Writing a Tool
+- **Stateless** — no mutable state between calls. Inherit from `StatelessFuncToolBase`.
+- **Stateful** — holds mutable state (e.g. a todo list). Inherit from `StatefulFuncToolBase` and implement `fresh()` to return a new, clean instance.
+
+When a skill sub-loop runs, every tool is `fresh()`-ed so the sub-loop gets clean state. Stateless tools return `self`; stateful tools return a new instance.
+
+## Writing a Stateless Tool
 
 ```python
-from harness.lms.tool import FuncToolBase, FuncToolCallException, FuncToolSpec
+from harness.lms.tool import StatelessFuncToolBase, FuncToolCallException, FuncToolSpec
 
 
-class MyTool(FuncToolBase):
+class MyTool(StatelessFuncToolBase):
   def __init__(self, ...):
     ...
 
@@ -25,6 +30,26 @@ class MyTool(FuncToolBase):
   def _call(self, *, param: str, optional: str = "", **kwargs) -> str:
     ...
     return "result"
+```
+
+## Writing a Stateful Tool
+
+```python
+from harness.lms.tool import StatefulFuncToolBase, FuncToolCallException, FuncToolSpec
+
+
+class MyStatefulTool(StatefulFuncToolBase):
+  def __init__(self):
+    self.items = []
+
+  def fresh(self) -> "MyStatefulTool":
+    return MyStatefulTool()  # clean instance with empty state
+
+  def spec(self) -> FuncToolSpec:
+    ...
+
+  def _call(self, **kwargs) -> str:
+    ...
 ```
 
 - `_call` must return a string. Raise `FuncToolCallException` on errors — the registry catches it and returns the message to the agent as an error string.
@@ -62,7 +87,7 @@ Tools that read or write files in the LLVM source tree take an `AccessControl` i
 from harness.llvm.access import AccessControl
 
 
-class MyTool(FuncToolBase):
+class MyTool(StatelessFuncToolBase):
   def __init__(self, acl: AccessControl):
     self.acl = acl
 
@@ -83,7 +108,7 @@ Tools that invoke binaries from an LLVM build directory should inherit `LlvmBuil
 from harness.tools.llvm_mixins import LlvmBuildDirMixin
 
 
-class MyLlvmTool(LlvmBuildDirMixin, FuncToolBase):
+class MyLlvmTool(LlvmBuildDirMixin, StatelessFuncToolBase):
   def __init__(self, llvm_build_dir: str):
     LlvmBuildDirMixin.__init__(self, llvm_build_dir)
     self._binary = self._binary_path("my-binary")  # validated eagerly

@@ -1,8 +1,8 @@
 from harness.llvm.debugger import DebuggerBase
-from harness.lms.tool import FuncToolBase, FuncToolCallException, FuncToolSpec
+from harness.lms.tool import FuncToolCallException, FuncToolSpec, StatelessFuncToolBase
 
 
-class DebugTool(FuncToolBase):
+class DebugTool(StatelessFuncToolBase):
   def __init__(self, debugger: DebuggerBase):
     self.debugger = debugger
 

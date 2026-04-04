@@ -79,6 +79,16 @@ class FuncToolBase(ABC):
     """
     ...
 
+  @abstractmethod
+  def fresh(self) -> "FuncToolBase":
+    """
+    Return a new instance with clean state for use in a new context (e.g. skill sub-loop).
+    Every tool must implement this and must return a new instance with all mutable state reset.
+    Prefer :class:`StatelessFuncToolBase` or :class:`StatefulFuncToolBase`
+    which provide the correct default.
+    """
+    ...
+
   def call(self, **kwargs) -> str:
     """
     Run the tool using the given arguments.
@@ -110,6 +120,24 @@ class FuncToolBase(ABC):
     Otherwise, raise a FuncToolCallException.
     """
     ...
+
+
+class StatelessFuncToolBase(FuncToolBase):
+  """Base class for tools that hold no mutable state between calls."""
+
+  def fresh(self) -> "StatelessFuncToolBase":
+    return self  # Stateless tools can return themselves since they hold no state
+
+
+class StatefulFuncToolBase(FuncToolBase):
+  """
+  Base class for tools that hold mutable state between calls.
+  Subclasses must implement :meth:`fresh` to return a new instance with
+  all mutable state reset (e.g. ``return TodoTool()``).
+  """
+
+  @abstractmethod
+  def fresh(self) -> "StatefulFuncToolBase": ...
 
 
 class ToolRegistry:

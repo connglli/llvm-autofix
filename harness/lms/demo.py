@@ -3,10 +3,14 @@ import tempfile
 from pathlib import Path
 
 from harness.lms.skill import SKILL_FILE
-from harness.lms.tool import FuncToolBase, FuncToolCallException, FuncToolSpec
+from harness.lms.tool import (
+  FuncToolCallException,
+  FuncToolSpec,
+  StatelessFuncToolBase,
+)
 
 
-class GetWeather(FuncToolBase):
+class GetWeather(StatelessFuncToolBase):
   def spec(self) -> FuncToolSpec:
     return FuncToolSpec(
       "get_weather",
@@ -82,7 +86,7 @@ Wind Speed: {wind_speed} km/h
 Humidity: {humidity}%"""
 
 
-class GetAverage(FuncToolBase):
+class GetAverage(StatelessFuncToolBase):
   def spec(self) -> FuncToolSpec:
     return FuncToolSpec(
       "get_average",
@@ -107,7 +111,7 @@ class GetAverage(FuncToolBase):
       )
 
 
-class FinishTask(FuncToolBase):
+class FinishTask(StatelessFuncToolBase):
   def spec(self) -> FuncToolSpec:
     return FuncToolSpec(
       "finish",

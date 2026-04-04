@@ -1,10 +1,10 @@
 import glob
 
 from harness.llvm.access import AccessControl
-from harness.lms.tool import FuncToolBase, FuncToolCallException, FuncToolSpec
+from harness.lms.tool import FuncToolCallException, FuncToolSpec, StatelessFuncToolBase
 
 
-class FindNTool(FuncToolBase):
+class FindNTool(StatelessFuncToolBase):
   def __init__(self, acl: AccessControl, n: int = 250):
     self.acl = acl
     self.n = n

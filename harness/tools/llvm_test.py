@@ -4,7 +4,7 @@ from unidiff import PatchedFile, PatchSet
 
 from harness.llvm.intern.lab_env import FixEnv
 from harness.llvm.intern.llvm import get_first_failed_test, pretty_render_log
-from harness.lms.tool import FuncToolBase, FuncToolCallException, FuncToolSpec
+from harness.lms.tool import FuncToolCallException, FuncToolSpec, StatelessFuncToolBase
 
 
 # TODO: Test sufficiency is a problem in any agents and benchmarks.
@@ -18,7 +18,7 @@ from harness.lms.tool import FuncToolBase, FuncToolCallException, FuncToolSpec
 # (2) run Csmith for a while
 # (3) design more applicable regression tests or leverage existing test suites
 # (4) etc.
-class TestTool(FuncToolBase):
+class TestTool(StatelessFuncToolBase):
   def __init__(self, env: FixEnv, allow_alt_asserts: bool = False):
     self.env = env
     self.allow_alt_asserts = allow_alt_asserts

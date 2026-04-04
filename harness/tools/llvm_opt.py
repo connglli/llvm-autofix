@@ -3,12 +3,12 @@ import subprocess
 from pathlib import Path
 
 from harness.llvm.intern.llvm import is_opt_crash
-from harness.lms.tool import FuncToolBase, FuncToolCallException, FuncToolSpec
+from harness.lms.tool import FuncToolCallException, FuncToolSpec, StatelessFuncToolBase
 from harness.tools.llvm_mixins import LlvmBuildDirMixin
 from harness.utils.cmdline import spawn_process
 
 
-class OptimizeIrTool(LlvmBuildDirMixin, FuncToolBase):
+class OptimizeIrTool(LlvmBuildDirMixin, StatelessFuncToolBase):
   def __init__(self, llvm_build_dir: str):
     LlvmBuildDirMixin.__init__(self, llvm_build_dir)
     self._opt = self._binary_path("opt")

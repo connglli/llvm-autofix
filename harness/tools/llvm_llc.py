@@ -2,12 +2,12 @@ import shlex
 import subprocess
 from pathlib import Path
 
-from harness.lms.tool import FuncToolBase, FuncToolCallException, FuncToolSpec
+from harness.lms.tool import FuncToolCallException, FuncToolSpec, StatelessFuncToolBase
 from harness.tools.llvm_mixins import LlvmBuildDirMixin
 from harness.utils.cmdline import spawn_process
 
 
-class CompileIrTool(LlvmBuildDirMixin, FuncToolBase):
+class CompileIrTool(LlvmBuildDirMixin, StatelessFuncToolBase):
   def __init__(self, llvm_build_dir: str):
     LlvmBuildDirMixin.__init__(self, llvm_build_dir)
     self._llc = self._binary_path("llc")

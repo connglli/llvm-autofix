@@ -1,9 +1,12 @@
-from harness.lms.tool import FuncToolBase, FuncToolCallException, FuncToolSpec
+from harness.lms.tool import FuncToolCallException, FuncToolSpec, StatefulFuncToolBase
 
 
-class TodoTool(FuncToolBase):
+class TodoTool(StatefulFuncToolBase):
   def __init__(self):
     self.todos = []
+
+  def fresh(self) -> "TodoTool":
+    return TodoTool()
 
   def spec(self) -> FuncToolSpec:
     return FuncToolSpec(

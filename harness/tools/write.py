@@ -1,8 +1,8 @@
 from harness.llvm.access import AccessControl
-from harness.lms.tool import FuncToolBase, FuncToolCallException, FuncToolSpec
+from harness.lms.tool import FuncToolCallException, FuncToolSpec, StatelessFuncToolBase
 
 
-class WriteTool(FuncToolBase):
+class WriteTool(StatelessFuncToolBase):
   def __init__(self, acl: AccessControl):
     self.acl = acl
 

@@ -5,11 +5,11 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 
 from harness.llvm.intern.llvm import filter_out_unsupported_feats
-from harness.lms.tool import FuncToolBase, FuncToolCallException, FuncToolSpec
+from harness.lms.tool import FuncToolCallException, FuncToolSpec, StatelessFuncToolBase
 from harness.utils.cmdline import spawn_process
 
 
-class VerifyIrTool(FuncToolBase):
+class VerifyIrTool(StatelessFuncToolBase):
   def __init__(self, alive_tv_path: str):
     self._alive_tv = Path(alive_tv_path).resolve()
     if not self._alive_tv.is_file():

@@ -1,8 +1,8 @@
 from harness.llvm.intern.lab_env import FixEnv
-from harness.lms.tool import FuncToolBase, FuncToolSpec
+from harness.lms.tool import FuncToolSpec, StatelessFuncToolBase
 
 
-class PreviewTool(FuncToolBase):
+class PreviewTool(StatelessFuncToolBase):
   def __init__(self, env: FixEnv):
     self.env = env
 

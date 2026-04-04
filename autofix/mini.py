@@ -16,7 +16,12 @@ from harness.llvm import (
 )
 from harness.llvm.debugger import DebuggerBase, StackTrace
 from harness.lms.agent import AgentBase, AgentHooks
-from harness.lms.tool import FuncToolBase, FuncToolCallException, FuncToolSpec
+from harness.lms.tool import (
+  FuncToolBase,
+  FuncToolCallException,
+  FuncToolSpec,
+  StatelessFuncToolBase,
+)
 from harness.utils.console import get_boxed_console
 
 # - ===============================================
@@ -395,7 +400,7 @@ def patch_and_fix(
   )
 
 
-class SubmitAnalysisTool(FuncToolBase):
+class SubmitAnalysisTool(StatelessFuncToolBase):
   def __init__(self, acl: AccessControl, min_edit_point_lines: int):
     self.acl = acl
     self.min_edit_point_lines = min_edit_point_lines
@@ -480,7 +485,7 @@ class SubmitAnalysisTool(FuncToolBase):
     )
 
 
-class SubmitPatchReportTool(FuncToolBase):
+class SubmitPatchReportTool(StatelessFuncToolBase):
   def spec(self) -> FuncToolSpec:
     return FuncToolSpec(
       "submit_patchreport",

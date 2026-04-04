@@ -295,14 +295,14 @@ class AgentBase:
         for name in saved_tools.list():
           if name == skill_name:
             continue  # Avoid registering the skill tool itself in the sub-loop
-          tool_obj = saved_tools.get(name)
+          tool_obj = saved_tools.get(name).fresh()
           self.tools.register(tool_obj, tool_budget)
       else:
         # Register only the skill's tool subset from the outer registry
         missing_tools = []
         for name in tool_names:
           if name in saved_tools.tools:
-            tool_obj = saved_tools.get(name)
+            tool_obj = saved_tools.get(name).fresh()
             self.tools.register(tool_obj, tool_budget)
           else:
             missing_tools.append(name)

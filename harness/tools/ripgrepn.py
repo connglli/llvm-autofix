@@ -1,11 +1,11 @@
 from subprocess import CalledProcessError
 
 from harness.llvm.access import AccessControl
-from harness.lms.tool import FuncToolBase, FuncToolCallException, FuncToolSpec
+from harness.lms.tool import FuncToolCallException, FuncToolSpec, StatelessFuncToolBase
 from harness.utils import cmdline
 
 
-class RipgrepNTool(FuncToolBase):
+class RipgrepNTool(StatelessFuncToolBase):
   def __init__(self, acl: AccessControl, n: int = 250):
     self.acl = acl
     self.n = n
