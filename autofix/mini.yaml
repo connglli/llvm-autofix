@@ -109,4 +109,7 @@ prompts:
          + Does not introduce any new regressions.
          + Does not turn off the problematic transformation or analysis entirely unless absolutely necessary.
     5. **Iterate**: If verification fails, analyze the failure, revise your proposal, and repeat the implementation and verification steps until all tests pass.
-    6. **Submit**: Provide the final, clean patch for review.
+    6. **Review**: Once the `test` tool reports success, call the `llvm-patchreview` skill to review your patch for potential bugs not covered by the regression tests. Pass the previously reviewed patch (if any) and the previous review report as the argument so the reviewer can check for regressions from earlier attempts. Ask the reviewer to use `preview` to see the current patch under review.
+         + If the review returns **REVISE**, address all findings, then `test` again and call `llvm-patchreview` again with the previous patch and review report.
+         + If the review returns **REJECT**, rethink your approach and start over with a different fix strategy.
+         + If the review returns **APPROVE**, you are done — the patch is accepted.

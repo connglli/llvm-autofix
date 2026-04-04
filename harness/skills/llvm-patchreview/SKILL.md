@@ -2,8 +2,10 @@
 name: llvm-patchreview
 description: >
   Review a patch for fixing an LLVM bug and produce a structured report that
-  identifies, categorizes, and prioritizes potential issues in the patch. The
-  patch under review has already passed LLVM's regression tests.
+  identifies, categorizes, and prioritizes potential issues in the patch. Use
+  this skill when you have a patch that has passed LLVM testing and is ready for
+  review. Pass the previously reviewed patch and the review report as `argument`,
+  if present, so the reviewer can check for regressions from earlier attempts.
 ---
 
 # LLVM Patch Review and Analysis Principles
@@ -42,6 +44,9 @@ Work through each category below **in order of priority**. For each category,
 perform at most the checks described; do not over-investigate. Stop a category
 as soon as you have enough evidence to write the finding (or to clear it). You
 are suggested to revise those pitfalls in `references/` for every bug category.
+
+If prior review context is provided as `argument`, pay special attention to
+whether issues flagged in earlier reviews have been addressed or have regressed.
 
 ### Category 1 — Unexpected Assertion Change (CRITICAL)
 
@@ -162,7 +167,9 @@ Check quickly (one pass over the diff):
 
 After completing all checks, generate a structured review report in the following
 format. Be concise — one or two sentences per finding, plus one actionable
-recommendation per finding.
+recommendation per finding. Don't include any extraneous information surrounding
+the report, neither the \`\`\`markdown ...\`\`\` notation. Start from the yaml
+frontmatter with the `verdict` decision and ends with the "\#\# Verdict" section.
 
 ```
 ---

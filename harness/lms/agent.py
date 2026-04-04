@@ -262,6 +262,8 @@ class AgentBase:
       if not tool_names:
         # Register all tools from the outer registry if no specific tool subset is provided
         for name in saved_tools.list():
+          if name == skill_name:
+            continue  # Avoid registering the skill tool itself in the sub-loop
           tool_obj = saved_tools.get(name)
           self.tools.register(tool_obj, tool_budget)
       else:

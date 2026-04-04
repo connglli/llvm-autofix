@@ -6,6 +6,8 @@ from dataclasses import asdict, dataclass, field
 from pathlib import Path
 from typing import List, Optional, Tuple
 
+import yaml
+
 import harness
 from harness.llvm import (
   AccessControl,
@@ -43,6 +45,7 @@ MAX_TCS_GET_CONTEXT = 250
 MAX_TCS_EDIT_AND_TEST = 25
 MIN_EDIT_POINT_LINES = 1
 # Enabled tools and their categories
+# Note these list should also include skills (a special type of tools).
 ENABLED_REASON_TOOLS = {
   # Explore codebase tools
   "list",
@@ -66,6 +69,8 @@ ENABLED_REPAIR_TOOLS = {
   "find",
   "ripgrep",
   "code",
+  "bash",
+  "write",
   # Documentation tools
   "docs",
   "langref",
@@ -75,12 +80,18 @@ ENABLED_REPAIR_TOOLS = {
   "reset",
   "test",
   "preview",
+  "interpret_ir",
+  "optimize_ir",
+  "verify_ir",
+  "compile_ir",
+  # Patch review skill
+  "llvm-patchreview",
 }
 ENABLED_TOOLS = ENABLED_REASON_TOOLS | ENABLED_REPAIR_TOOLS
 EDIT_AND_TEST_TOOLS = {"edit", "reset", "test"}
 GET_CONTEXT_TOOLS = ENABLED_TOOLS - EDIT_AND_TEST_TOOLS
-# Enabled skills
-ENABLED_SKILLS = set()
+# Enabled skills: only list skills
+ENABLED_SKILLS = {"llvm-patchreview"}
 
 # - ================================================
 # - LLVM settings
@@ -169,13 +180,22 @@ class RunStats:
   total_time_sec: float = 0.0
   # Fix stats
   trans_point: Tuple[str, str] = ("<not-provided>", "<not-provided>")
-  edit_points: List[Tuple[str, int, int]] = field(
+  editpoints: List[Tuple[str, int, int]] = field(
     default_factory=lambda *_, **__: [("<not-provided>", -1, -1)]
   )
-  reason_thou: str = "<not-provided>"
+  reasoning: str = "<not-provided>"
   test_traj: List[str] = field(
     default_factory=list
   )  # Trajectories of patches ever tried during testing
+  rev_traj: List[str] = field(
+    default_factory=list
+  )  # Trajectories of patches submitted for review
+  rep_traj: List[str] = field(
+    default_factory=list
+  )  # Trajectories of review reports for reviewed patches
+  patch_report: Optional[str] = (
+    None  # Final patch report (root cause + fix explanation)
+  )
 
   def as_dict(self) -> dict:
     return asdict(self)
@@ -225,6 +245,45 @@ EDIT_POINT_FORMAT = """\
 {code}
 ```\
 """
+
+
+_REVIEW_FORMAT_ERROR = (
+  "Error: The review report must be valid Markdown with YAML frontmatter "
+  "containing a `verdict` field (APPROVE, REVISE, or REJECT). "
+  "Output ONLY the report — no surrounding explanations or ```markdown fences. "
+  "Expected format:\n\n"
+  "---\n"
+  "verdict: APPROVE | REVISE | REJECT\n"
+  "---\n\n"
+  "# Patch Review Report\n"
+  "..."
+)
+
+
+def _parse_review_verdict(report: str) -> Optional[str]:
+  """Parse the verdict from a review report's YAML frontmatter.
+
+  Returns the verdict string (APPROVE/REVISE/REJECT) or None if the
+  report is not valid Markdown with YAML frontmatter.
+  """
+  report = report.strip()
+  start = report.find("---")
+  if start == -1:
+    return None  # No frontmatter start found
+  end = report.find("---", 3)
+  if end == -1:
+    return None  # No frontmatter end found
+
+  try:
+    header = yaml.safe_load(report[3:end])
+    if not isinstance(header, dict):
+      return None  # Invalid frontmatter format
+    verdict = str(header.get("verdict", "")).strip().upper()
+    if verdict in ("APPROVE", "REVISE", "REJECT"):
+      return verdict
+    return None  # Unknown verdict value
+  except Exception:
+    return None  # Invalid YAML format
 
 
 def patch_and_fix(
@@ -278,6 +337,11 @@ def patch_and_fix(
     )
   )
 
+  # The model drives the repair-review cycle autonomously:
+  # it edits, tests, calls llvm-patchreview, revises if needed, and
+  # only submits once the reviewer approves.
+  has_review_skill = any(sk.name in ENABLED_SKILLS for sk in harness.get_skills())
+
   def response_callback(_: str) -> Tuple[bool, str]:
     ensure_tools_available(agent, ["test", "edit"])
     return True, (
@@ -293,9 +357,17 @@ def patch_and_fix(
     if name == "test":
       patch = fixenv.dump_patch()
       stats.test_traj.append(patch)
-      if res == "<success>":
-        return False, patch  # Stop the process and return the valid patch
-    return True, res  # Continue the process
+      if res == "<success>" and not has_review_skill:
+        return False, patch  # No review skill — stop on test success
+    elif name == "llvm-patchreview":
+      patch = fixenv.dump_patch()
+      stats.rev_traj.append(patch)
+      stats.rep_traj.append(res)
+      verdict = _parse_review_verdict(res)
+      if verdict == "APPROVE":
+        stats.patch_report = res
+        return False, patch  # Stop on review approval
+    return True, res
 
   return agent.run(
     ENABLED_REPAIR_TOOLS,
@@ -479,12 +551,8 @@ def run_mini_agent(
         color="yellow",
       )
 
-  # if len(fixed_edit_points) == 0:
-  #   console.print("No valid edit points found in the response.")
-  #   return None  # We are not able to proceed without interesting edit points
-
-  stats.reason_thou = reasoning_thoughts
-  stats.edit_points = [ep.as_tuple() for ep in fixed_edit_points]
+  stats.reasoning = reasoning_thoughts
+  stats.editpoints = [ep.as_tuple() for ep in fixed_edit_points]
 
   # Generate a patch and fix the issue according to the information
   return patch_and_fix(

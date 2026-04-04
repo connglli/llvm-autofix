@@ -37,6 +37,7 @@ allowed-tools:
   - read
   - find
   - ripgrep
+tool-budget: 5
 ---
 
 # Skill Title
@@ -63,9 +64,9 @@ Parameters are declared in the frontmatter and injected into the skill body at i
 
 If a skill declares no parameters, a default optional `argument: str` parameter is added automatically. The skill's prompt body will receive a `# Arguments` section containing whatever the caller passed.
 
-## Allowed Tools
+## Allowed Tools and Tool Budget
 
-The `allowed-tools` field lists the tool names the skill is permitted to call. Only tools registered with the agent at runtime are available regardless of what is listed here. If omitted, the skill has access to all tools registered with the agent.
+The `allowed-tools` field lists the tool names the skill is permitted to call. Only tools registered with the agent at runtime are available regardless of what is listed here. If omitted, the skill has access to all tools registered with the agent. The `tool-budget` field limits how many total tool calls the skill can make for each tool during execution. If omitted, there is no limit on tool usage.
 
 ## Context
 
