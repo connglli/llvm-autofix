@@ -58,7 +58,7 @@ prompts:
     2. **Analyzing `opt`'s Log**: Highlight any relevant transformations, analysis results, or unexpected behavior observed in the `opt` output.
     3. **Root Cause Analysis**: Connect the observations to the underlying cause in the code.
     4. **Proposed Edit Point(s)**
-       + Each edit point should be at least {min_edit_point_lines} lines long
+       + Each edit point should be at least {min_editpoint_lines} lines long
        + NOTICE (on assertion failure): Assertion failures typically indicate earlier errors in execution. Assume all assertions are correct and investigate preceding code or conditions. Edit points can contain but cannot be limited to assertion statements.
     5. **Conclusion**: Summarize the fix and its expected effect.
 
@@ -92,7 +92,7 @@ prompts:
     You should use the provided tools to explore the codebase for more context and edit the codebase as needed to fix the bug.
 
     -------------------- BEGIN --------------------
-    {edit_points}
+    {editpoints}
     --------------------  END  --------------------
 
     ## Instructions for Fixing ##

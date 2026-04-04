@@ -48,7 +48,7 @@ AGENT_MAX_CONSUMED_TOKENS = 5_000_000
 # to be careful and think twice when they are editing and testing.
 MAX_TCS_GET_CONTEXT = 250
 MAX_TCS_EDIT_AND_TEST = 25
-MIN_EDIT_POINT_LINES = 1
+MIN_editpoint_LINES = 1
 # Enabled tools and their categories
 # Note these list should also include skills (a special type of tools).
 ENABLED_REASON_TOOLS = {
@@ -285,7 +285,7 @@ def _parse_review_verdict(report: str) -> Optional[str]:
 
 
 def patch_and_fix(
-  edit_points: List[PatchEditPoint],
+  editpoints: List[PatchEditPoint],
   reason_info: str,
   *,
   rep: Reproducer,
@@ -295,7 +295,7 @@ def patch_and_fix(
 ) -> Optional[str]:
   fixenv = harness.fixenv
   console.print(
-    f"Generating patch for edit points: {', '.join([str(ep) for ep in edit_points])} ..."
+    f"Generating patch for edit points: {', '.join([str(ep) for ep in editpoints])} ..."
   )
 
   # Reset the LLVM repo to the base commit
@@ -303,10 +303,10 @@ def patch_and_fix(
   agent.clear_history()
 
   # Fix: There're chances that the model proposes incorrect edit points
-  formatted_edit_points = []
-  for ep in edit_points:
+  formatted_editpoints = []
+  for ep in editpoints:
     try:
-      formatted_edit_points.append(
+      formatted_editpoints.append(
         _EDITPOINT_FORMAT.format(
           file=ep.file,
           start=ep.start,
@@ -331,7 +331,7 @@ def patch_and_fix(
       reprod_code=rep.file_path.read_text(),
       issue_symptom=rep.symptom,
       reason_info=reason_info,
-      edit_points="\n".join(formatted_edit_points) or "<not-found>",
+      editpoints="\n".join(formatted_editpoints) or "<not-found>",
     )
   )
 
@@ -401,9 +401,9 @@ def patch_and_fix(
 
 
 class SubmitAnalysisTool(StatelessFuncToolBase):
-  def __init__(self, acl: AccessControl, min_edit_point_lines: int):
+  def __init__(self, acl: AccessControl, min_editpoint_lines: int):
     self.acl = acl
-    self.min_edit_point_lines = min_edit_point_lines
+    self.min_editpoint_lines = min_editpoint_lines
 
   def spec(self) -> FuncToolSpec:
     return FuncToolSpec(
@@ -411,7 +411,7 @@ class SubmitAnalysisTool(StatelessFuncToolBase):
       "Stop analysis and report the found edit points for fixing the issue",
       [
         FuncToolSpec.Param(
-          "edit_points",
+          "editpoints",
           "list[tuple[int,int,string]]",
           True,
           "A list of edit points with each being a tuple of the one-indexed starting line number (included)"
@@ -432,11 +432,11 @@ class SubmitAnalysisTool(StatelessFuncToolBase):
     )
 
   def _call(
-    self, *, edit_points: list[tuple[int, int, str]], thoughts: str, **kwargs
+    self, *, editpoints: list[tuple[int, int, str]], thoughts: str, **kwargs
   ) -> str:
     # Check and fix the model-provided edit points
-    fixed_edit_points = []
-    for ind, edit in enumerate(edit_points):
+    fixed_editpoints = []
+    for ind, edit in enumerate(editpoints):
       if len(edit) != 3:
         raise FuncToolCallException(
           f"Each edit point must be a tuple of 3 elements (starting line number, ending line number, and the relative path of the file to edit): {edit}"
@@ -446,26 +446,26 @@ class SubmitAnalysisTool(StatelessFuncToolBase):
         start_line = int(edit[0])
       except Exception:
         raise FuncToolCallException(
-          f"The starting line number must be an integer, got {edit[0]} at edit_points[{ind}]: {edit}"
+          f"The starting line number must be an integer, got {edit[0]} at editpoints[{ind}]: {edit}"
         )
       if start_line < 1:
         raise FuncToolCallException(
-          f"The starting line number must be an one-indexed integer, got {start_line} at edit_points[{ind}]: {edit}"
+          f"The starting line number must be an one-indexed integer, got {start_line} at editpoints[{ind}]: {edit}"
         )
       fixed_edit.append(start_line)
       try:
         end_line = int(edit[1])
       except Exception:
         raise FuncToolCallException(
-          f"The ending line number must be an integer, got {edit[1]} at edit_points[{ind}]: {edit}"
+          f"The ending line number must be an integer, got {edit[1]} at editpoints[{ind}]: {edit}"
         )
       if end_line < 1:
         raise FuncToolCallException(
-          f"The ending line number must be an one-indexed integer, got {end_line} at edit_points[{ind}]: {edit}"
+          f"The ending line number must be an one-indexed integer, got {end_line} at editpoints[{ind}]: {edit}"
         )
-      if end_line - start_line + 1 < self.min_edit_point_lines:
+      if end_line - start_line + 1 < self.min_editpoint_lines:
         raise FuncToolCallException(
-          f"An edit point must be at least {self.min_edit_point_lines} lines long, got {end_line - start_line + 1} lines at edit_points[{ind}]: {edit}"
+          f"An edit point must be at least {self.min_editpoint_lines} lines long, got {end_line - start_line + 1} lines at editpoints[{ind}]: {edit}"
         )
       fixed_edit.append(end_line)
       try:
@@ -473,12 +473,12 @@ class SubmitAnalysisTool(StatelessFuncToolBase):
         fixed_edit.append(str(resolved.relative_to(self.acl.root)))
       except Exception as e:
         raise FuncToolCallException(
-          f"Invalid file path for detected at edit_points[{ind}]: {edit}. {e}"
+          f"Invalid file path for detected at editpoints[{ind}]: {edit}. {e}"
         )
-      fixed_edit_points.append(tuple(fixed_edit))
+      fixed_editpoints.append(tuple(fixed_edit))
     return json.dumps(
       {
-        "edit_points": fixed_edit_points,
+        "editpoints": fixed_editpoints,
         "thoughts": thoughts,
       },
       indent=2,
@@ -548,7 +548,7 @@ def run_mini_agent(
       trans_point_file=str(backtrace[-1].file),
       trans_point_func=backtrace[-1].func,
       trans_point_stack="\n".join([str(it) for it in reversed(backtrace)]),
-      min_edit_point_lines=MIN_EDIT_POINT_LINES,
+      min_editpoint_lines=MIN_editpoint_LINES,
     )
   )
 
@@ -580,34 +580,34 @@ def run_mini_agent(
 
   # Parse the response to get potential edit points
   response = json.loads(response)
-  edit_points = response.get("edit_points", [])
+  editpoints = response.get("editpoints", [])
   reasoning_thoughts = response.get("thoughts", "")
-  fixed_edit_points = []
+  fixed_editpoints = []
 
-  for edit_point in edit_points:
+  for editpoint in editpoints:
     try:
-      edit_point_start, edit_point_end, edit_point_file = edit_point
-      if not is_interesting_file(edit_point_file):
-        console.print(f"Ignore non-interesting file {edit_point_file} for now.")
+      editpoint_start, editpoint_end, editpoint_file = editpoint
+      if not is_interesting_file(editpoint_file):
+        console.print(f"Ignore non-interesting file {editpoint_file} for now.")
         continue
-      edit_point_file = Path(edit_point_file)
-      if edit_point_file.is_absolute():
-        edit_point_file = edit_point_file.relative_to(harness.llvm_dir)
-      fixed_edit_points.append(
-        PatchEditPoint(int(edit_point_start), int(edit_point_end), edit_point_file)
+      editpoint_file = Path(editpoint_file)
+      if editpoint_file.is_absolute():
+        editpoint_file = editpoint_file.relative_to(harness.llvm_dir)
+      fixed_editpoints.append(
+        PatchEditPoint(int(editpoint_start), int(editpoint_end), editpoint_file)
       )
     except Exception as e:
       console.print(
-        f"WARNING: skip edit point {edit_point} due to parse failure: {e}",
+        f"WARNING: skip edit point {editpoint} due to parse failure: {e}",
         color="yellow",
       )
 
   stats.reasoning = reasoning_thoughts
-  stats.editpoints = [ep.as_tuple() for ep in fixed_edit_points]
+  stats.editpoints = [ep.as_tuple() for ep in fixed_editpoints]
 
   # Generate a patch and fix the issue according to the information
   return patch_and_fix(
-    fixed_edit_points,
+    fixed_editpoints,
     reasoning_thoughts,
     rep=rep,
     agent=agent,
@@ -744,7 +744,7 @@ def get_enabled_tools(harness: Harness):
 
   # Agent-specific: report tools.
   tools.append(
-    (SubmitAnalysisTool(harness.acl, MIN_EDIT_POINT_LINES), MAX_TCS_GET_CONTEXT)
+    (SubmitAnalysisTool(harness.acl, MIN_editpoint_LINES), MAX_TCS_GET_CONTEXT)
   )
   tools.append((SubmitPatchReportTool(), MAX_TCS_GET_CONTEXT))
 
