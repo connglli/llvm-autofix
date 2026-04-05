@@ -1,8 +1,7 @@
-import sys
 from abc import ABC, abstractmethod
 from collections import OrderedDict
 from dataclasses import dataclass
-from typing import List
+from typing import List, Optional
 
 
 class FuncToolSpec:
@@ -150,32 +149,45 @@ class ToolRegistry:
       registry.tools[name] = [tool, total_budget, total_budget]
     return registry
 
-  def register(self, tool: FuncToolBase, budget: int = sys.maxsize):
+  def register(self, tool: FuncToolBase, budget: Optional[int] = None):
     if tool.name() in self.tools:
       raise ValueError(f"Tool with name {tool.name()} is already registered.")
     self.tools[tool.name()] = [
       tool,  # The tool itself
-      budget,  # Remaining budget
-      budget,  # Total budget
+      budget,  # Remaining budget (None = unlimited)
+      budget,  # Total budget (None = unlimited)
     ]
+
+  def has(self, name: str, ignore_budget=True) -> bool:
+    return (
+      name in self.tools if ignore_budget else name in self.list(ignore_budget=False)
+    )
 
   def get(self, name: str) -> FuncToolBase:
     self._ensure_registered(name)
     return self.tools[name][0]
 
-  def get_remaining_budget(self, name: str) -> int:
+  def get_remaining_budget(self, name: str) -> Optional[int]:
     self._ensure_registered(name)
     return self.tools[name][1]
 
-  def get_total_budget(self, name: str) -> int:
+  def get_total_budget(self, name: str) -> Optional[int]:
     self._ensure_registered(name)
     return self.tools[name][2]
+
+  @staticmethod
+  def format_budget(budget: Optional[int]) -> str:
+    return "<unlimited>" if budget is None else str(budget)
 
   def list(self, ignore_budget=True) -> List[str]:
     if ignore_budget:
       return list(self.tools.keys())
     else:
-      return [name for name in self.tools if self.tools[name][1] > 0]
+      return [
+        name
+        for name in self.tools
+        if self.tools[name][1] is None or self.tools[name][1] > 0
+      ]
 
   def call(self, name: str, **kwargs) -> str:
     try:
@@ -186,7 +198,7 @@ class ToolRegistry:
     except Exception as e:
       result = f"Error: {e}"
     finally:
-      if name in self.tools:
+      if name in self.tools and self.tools[name][1] is not None:
         self.tools[name][1] -= 1
     result = result.strip()
     if result == "":
@@ -195,7 +207,7 @@ class ToolRegistry:
 
   def _ensure_remaining_budget(self, name: str):
     self._ensure_registered(name)
-    if self.tools[name][1] <= 0:
+    if self.tools[name][1] is not None and self.tools[name][1] <= 0:
       raise FuncToolCallException(f"Tool {name} has no remaining budget left.")
 
   def _ensure_registered(self, name: str):

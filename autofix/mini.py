@@ -15,7 +15,7 @@ from harness.llvm import (
   Reproducer,
 )
 from harness.llvm.debugger import DebuggerBase, StackTrace
-from harness.lms.agent import AgentBase, AgentHooks
+from harness.lms.agent import AgentBase, AgentConfig, AgentHooks
 from harness.lms.meter import GlobalMeter
 from harness.lms.tool import (
   FuncToolBase,
@@ -47,11 +47,10 @@ AGENT_MAX_CHAT_ROUNDS = 500
 AGENT_MAX_CONSUMED_TOKENS = 5_000_000
 # We give context gathering tools more budget and restrict the models
 # to be careful and think twice when they are editing and testing.
-MAX_TCS_GET_CONTEXT = 250
-MAX_TCS_EDIT_AND_TEST = 25
-MIN_editpoint_LINES = 1
-# Enabled tools and their categories
-# Note these list should also include skills (a special type of tools).
+MAX_TCS_LIGHTWEIGHT_TOOLS = 250
+MAX_TCS_HEAVYWEIGHT_TOOLS = 25
+MIN_EDITPOINT_LINES = 3
+# Enabled tools per stage and their categories
 ENABLED_REASON_TOOLS = {
   # Explore codebase tools
   "list",
@@ -90,17 +89,17 @@ ENABLED_REPAIR_TOOLS = {
   "optimize_ir",
   "verify_ir",
   "compile_ir",
-  # Patch review skill
-  "llvm-patchreview",
   # Report tool to submit a patch report
   "submit_patchreport",
 }
-ENABLED_TOOLS = ENABLED_REASON_TOOLS | ENABLED_REPAIR_TOOLS
-EDIT_AND_TEST_TOOLS = {"edit", "reset", "test"}
-GET_CONTEXT_TOOLS = ENABLED_TOOLS - EDIT_AND_TEST_TOOLS
-# Enabled skills: only list skills
-ENABLED_SKILLS = {"llvm-patchreview"}
-HAS_REVIEW_SKILL = "llvm-patchreview" in ENABLED_SKILLS
+ALL_ENABLED_TOOLS = ENABLED_REASON_TOOLS | ENABLED_REPAIR_TOOLS
+HEAVYWEIGHT_TOOLS = {"test"}
+LIGHTWEIGHT_TOOLS = ALL_ENABLED_TOOLS - HEAVYWEIGHT_TOOLS
+# Enabled skills per stage and their categories
+ENABLED_REASON_SKILLS: set[str] = set()
+ENABLED_REPAIR_SKILLS = {"llvm-patchreview"}
+ALL_ENABLED_SKILLS = ENABLED_REASON_SKILLS | ENABLED_REPAIR_SKILLS
+HAS_REVIEW_SKILL = "llvm-patchreview" in ENABLED_REPAIR_SKILLS
 
 # - ================================================
 # - LLVM settings
@@ -290,7 +289,7 @@ def patch_and_fix(
   reason_info: str,
   *,
   rep: Reproducer,
-  agent: AgentBase,
+  aconf: AgentConfig,
   harness: Harness,
   stats: RunStats,
 ) -> Optional[str]:
@@ -301,7 +300,7 @@ def patch_and_fix(
 
   # Reset the LLVM repo to the base commit
   harness.git("checkout", ".")
-  agent.clear_history()
+  agent = _create_repair_agent(aconf, harness)
 
   # Fix: There're chances that the model proposes incorrect edit points
   formatted_editpoints = []
@@ -396,7 +395,6 @@ def patch_and_fix(
     return True, res
 
   return agent.run(
-    ENABLED_REPAIR_TOOLS,
     AgentHooks(post_response=response_callback, post_tool_call=tool_call_callback),
   )
 
@@ -522,15 +520,13 @@ def run_mini_agent(
   # Debugger information
   debugger: DebuggerBase,
   backtrace: StackTrace,
-  # Agent used
-  agent: AgentBase,
+  # Agent config
+  aconf: AgentConfig,
   # Harness
   harness: Harness,
   # Statistics
   stats: RunStats,
 ) -> Optional[str]:
-  agent.clear_history()
-
   #####################################################
   # The agent runs by:
   # 1. Analyze the issue first to reason about the root cause and propose potential edit points.
@@ -539,7 +535,8 @@ def run_mini_agent(
 
   # Reason about the root cause and propose potential edit points
   console.print("Analyzing the issue to gather required information ...")
-  agent.append_user_message(
+  reason_agent = _create_reason_agent(aconf, harness)
+  reason_agent.append_user_message(
     PROMPT_REASON.format(
       pass_name=opt_pass,
       reprod_code=rep.file_path.read_text(),
@@ -549,12 +546,12 @@ def run_mini_agent(
       trans_point_file=str(backtrace[-1].file),
       trans_point_func=backtrace[-1].func,
       trans_point_stack="\n".join([str(it) for it in reversed(backtrace)]),
-      min_editpoint_lines=MIN_editpoint_LINES,
+      min_editpoint_lines=MIN_EDITPOINT_LINES,
     )
   )
 
   def response_handler(_: str) -> Tuple[bool, str]:
-    ensure_tools_available(agent, ["submit_analysis"])
+    ensure_tools_available(reason_agent, ["submit_analysis"])
     return True, (
       "Error: You are not calling any tool or your tool call format is incorrect. "
       "You should always continue with tool calling and correct tool call format. "
@@ -564,7 +561,7 @@ def run_mini_agent(
     )
 
   def tool_call_handler(name: str, _: str, res: str) -> Tuple[bool, str]:
-    ensure_tools_available(agent, ["submit_analysis"])
+    ensure_tools_available(reason_agent, ["submit_analysis"])
     if name != "submit_analysis":
       return True, res  # Continue the process
     try:
@@ -574,8 +571,7 @@ def run_mini_agent(
       return (True, res)  # Continue the process with an error message
     return False, res  # Stop the process with the result
 
-  response = agent.run(
-    ENABLED_REASON_TOOLS,
+  response = reason_agent.run(
     AgentHooks(post_response=response_handler, post_tool_call=tool_call_handler),
   )
 
@@ -608,7 +604,7 @@ def run_mini_agent(
     fixed_editpoints,
     reasoning_thoughts,
     rep=rep,
-    agent=agent,
+    aconf=aconf,
     harness=harness,
     stats=stats,
   )
@@ -716,43 +712,61 @@ def run_opt(
   return opt_pass, opt_cmd, opt_log
 
 
-def get_enabled_skills(harness: Harness):
+def _get_enabled_skills(
+  harness: Harness, enabled: set[str]
+) -> list[tuple[Path, int, Optional[int]]]:
   return [
-    (sk, MAX_TCS_GET_CONTEXT)
+    (sk, MAX_TCS_LIGHTWEIGHT_TOOLS, MAX_TCS_LIGHTWEIGHT_TOOLS)
     for sk in harness.get_skills()
-    if sk.name in ENABLED_SKILLS
+    if sk.name in enabled
   ]
 
 
-def get_enabled_tools(harness: Harness):
+def _get_enabled_tools(
+  harness: Harness, enabled: set[str]
+) -> list[tuple[FuncToolBase, int]]:
+  """Get harness-provided tools filtered by the enabled set."""
   tools: list[tuple[FuncToolBase, int]] = []
-
-  # Harness-provided tools: source-tree, build, env, and debugger tools.
   for tool in harness.make_tools():
     name = tool.name()
-    if name not in ENABLED_TOOLS:
+    if name not in enabled:
       continue
-    if name in EDIT_AND_TEST_TOOLS:
-      tools.append((tool, MAX_TCS_EDIT_AND_TEST))
-    elif name in GET_CONTEXT_TOOLS:
-      tools.append((tool, MAX_TCS_GET_CONTEXT))
+    if name in HEAVYWEIGHT_TOOLS:
+      tools.append((tool, MAX_TCS_HEAVYWEIGHT_TOOLS))
+    elif name in LIGHTWEIGHT_TOOLS:
+      tools.append((tool, MAX_TCS_LIGHTWEIGHT_TOOLS))
     else:
       panic(f"Tool {name} does not have a defined tool call limit.")
-
-  # Agent-specific: report tools.
-  tools.append(
-    (SubmitAnalysisTool(harness.acl, MIN_editpoint_LINES), MAX_TCS_GET_CONTEXT)
-  )
-  tools.append((SubmitPatchReportTool(), MAX_TCS_GET_CONTEXT))
-
   return tools
+
+
+def _create_reason_agent(agent_config: AgentConfig, harness: Harness) -> AgentBase:
+  """Create a fresh agent with reason-stage tools and skills."""
+  tools = _get_enabled_tools(harness, ENABLED_REASON_TOOLS)
+  tools.append(
+    (SubmitAnalysisTool(harness.acl, MIN_EDITPOINT_LINES), MAX_TCS_LIGHTWEIGHT_TOOLS)
+  )
+  return agent_config.create_agent(
+    tools=tools,
+    skills=_get_enabled_skills(harness, ENABLED_REASON_SKILLS),
+  )
+
+
+def _create_repair_agent(agent_config: AgentConfig, harness: Harness) -> AgentBase:
+  """Create a fresh agent with repair-stage tools and skills."""
+  tools = _get_enabled_tools(harness, ENABLED_REPAIR_TOOLS)
+  tools.append((SubmitPatchReportTool(), MAX_TCS_LIGHTWEIGHT_TOOLS))
+  return agent_config.create_agent(
+    tools=tools,
+    skills=_get_enabled_skills(harness, ENABLED_REPAIR_SKILLS),
+  )
 
 
 def autofix(
   rep: Reproducer,
   *,
   harness: Harness,
-  agent: AgentBase,
+  aconf: AgentConfig,
   stats: RunStats,
 ):
   # We use a debugger to help the agent understand the context
@@ -765,17 +779,6 @@ def autofix(
     rep, harness=harness, backtrace=backtrace.clone()
   )
 
-  # The list of our tools and their call limits. 0 means allowing unlimited call.
-  for to, th in get_enabled_tools(harness):
-    agent.register_tool(to, th)
-
-  # Load and register skills as callable tools
-  for sk, th in get_enabled_skills(harness):
-    assert (
-      "bash" in agent.tools.list() and agent.tools.get_remaining_budget("bash") > 0
-    ), "Skills require the bash tool to be enabled"
-    agent.register_skill(sk, th)
-
   # Run the agent with all required information and tools
   return run_mini_agent(
     rep,
@@ -784,7 +787,7 @@ def autofix(
     opt_log=opt_log,
     debugger=debugger,
     backtrace=backtrace,
-    agent=agent,
+    aconf=aconf,
     harness=harness,
     stats=stats,
   )
@@ -846,11 +849,11 @@ def main():
   if args.driver == "openai":
     from harness.lms.openai_generic import GPTGenericAgent
 
-    agent_class = GPTGenericAgent
+    driver_class = GPTGenericAgent
   elif args.driver == "anthropic":
     from harness.lms.anthropic_generic import ClaudeGenericAgent
 
-    agent_class = ClaudeGenericAgent
+    driver_class = ClaudeGenericAgent
   else:
     panic(f"Unsupported LLM API driver: {args.driver}")
 
@@ -859,8 +862,9 @@ def main():
     round_limit=AGENT_MAX_CHAT_ROUNDS,
   )
 
-  agent = agent_class(
-    args.model,
+  aconf = AgentConfig(
+    driver_class=driver_class,
+    model=args.model,
     temperature=AGENT_TEMPERATURE,
     top_p=AGENT_TOP_P,
     max_completion_tokens=AGENT_MAX_COMPLETION_TOKENS,
@@ -906,7 +910,7 @@ def main():
       stats.patch = autofix(
         rep,
         harness=h,
-        agent=agent,
+        aconf=aconf,
         stats=stats,
       )
       if not stats.patch:

@@ -1,9 +1,8 @@
 from __future__ import annotations
 
-import sys
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import TYPE_CHECKING, List
+from typing import TYPE_CHECKING, List, Optional
 
 import yaml
 
@@ -21,7 +20,9 @@ class Skill:
   description: str
   parameters: List[FuncToolSpec.Param]
   tools: List[str]  # Tool names available in the sub-loop
-  budget: int  # Max number of calls per tool allowed in the sub-loop
+  budget: Optional[
+    int
+  ]  # Max number of calls per tool allowed in the sub-loop (None = unlimited)
   instructions: str  # Markdown body with {{ param }} placeholders
   path: Path = field(default_factory=lambda: Path("."))  # Skill directory
   references: List[Path] = field(default_factory=list)  # Extra files in skill dir
@@ -86,6 +87,12 @@ class SkillTool(StatelessFuncToolBase):
     if self.skill.references and self.inject_materials:
       refs_text = "\n".join(f"- `{ref.resolve()}`" for ref in self.skill.references)
       prompt += "\n\n# References\n\n" + refs_text
+
+    if not self.inject_materials:
+      prompt += (
+        "\n\n# Notice\n\n"
+        + f"Paths such as `reference/*` and `scripts/*` metioned above are relative to the directory: \n\n```\n{self.skill.path.resolve()}\n```"
+      )
 
     # Auto-add bash to tools if skill has scripts
     tool_names = list(self.skill.tools)
@@ -161,7 +168,7 @@ def load_skill(path: Path) -> Skill:
     description=header["description"],
     parameters=params,
     tools=header.get("allowed-tools", []),
-    budget=header.get("tool-budget", sys.maxsize),
+    budget=header.get("tool-budget", None),
     instructions=body,
     path=skill_dir,
     references=references,

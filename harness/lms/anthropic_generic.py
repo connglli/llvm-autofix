@@ -3,31 +3,13 @@ from typing import Dict, List, Tuple
 
 from anthropic import Anthropic, omit
 
-from harness.lms.agent import (
-  ReasoningEffort,
-)
+from harness.lms.agent import AgentConfig
 from harness.lms.generic import GenericAgent
 
 
 class ClaudeGenericAgent(GenericAgent):
-  def __init__(
-    self,
-    model: str,
-    *,
-    temperature: float = 0,
-    top_p: float = 0.95,
-    max_completion_tokens: int = 8092,
-    reasoning_effort: ReasoningEffort = "NOT_GIVEN",
-    debug_mode: bool = False,
-  ):
-    super().__init__(
-      model,
-      temperature=temperature,
-      top_p=top_p,
-      max_completion_tokens=max_completion_tokens,
-      reasoning_effort=reasoning_effort,
-      debug_mode=debug_mode,
-    )
+  def __init__(self, config: AgentConfig):
+    super().__init__(config)
     if self.reasoning_effort == "NOT_GIVEN":
       self.reasoning_effort = omit
       self.thinking = omit

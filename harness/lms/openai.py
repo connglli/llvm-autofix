@@ -7,35 +7,19 @@ from openai import NOT_GIVEN, OpenAI
 
 from harness.lms.agent import (
   AgentBase,
+  AgentConfig,
   AgentHooks,
   ChatMessageFunctionCall,
   ChatMessageFunctionCallOutput,
   ChatMessageMessage,
-  ReasoningEffort,
 )
 from harness.lms.meter import GlobalMeter
 
 
 @warnings.deprecated("Use GPTGenericAgent instead")
 class GPTAgent(AgentBase):
-  def __init__(
-    self,
-    model: str,
-    *,
-    temperature: float = 0,
-    top_p: float = 0.95,
-    max_completion_tokens: int = 8092,
-    reasoning_effort: ReasoningEffort = "NOT_GIVEN",
-    debug_mode: bool = False,
-  ):
-    super().__init__(
-      model,
-      temperature=temperature,
-      top_p=top_p,
-      max_completion_tokens=max_completion_tokens,
-      reasoning_effort=reasoning_effort,
-      debug_mode=debug_mode,
-    )
+  def __init__(self, config: AgentConfig):
+    super().__init__(config)
     if self.reasoning_effort == "NOT_GIVEN":
       self.reasoning_effort = NOT_GIVEN
     api_key = os.environ.get("LLVM_HARNESS_LM_API_KEY")
@@ -83,23 +67,13 @@ class GPTAgent(AgentBase):
 
   def run(
     self,
-    activated_tools: List[str],
     hooks: AgentHooks,
   ) -> str:
     while True:
-      gm = GlobalMeter.instance()
-      m = self.meter
-      self.console.print(
-        f"Executing round #{m.chat_rounds} | "
-        f"current.input_tokens={m.input_tokens}, current.cached_tokens={m.cached_tokens}, "
-        f"current.output_tokens={m.output_tokens}, current.total_tokens={m.total_tokens} | "
-        f"global.rounds={gm.total_rounds}, global.input_tokens={gm.total_input_tokens}, "
-        f"global.cached_tokens={gm.total_cached_tokens}, global.output_tokens={gm.total_output_tokens}, "
-        f"global.total_tokens={gm.total_tokens}"
-      )
+      self.console.print(GlobalMeter.format_status(self.meter))
       self.meter.record_round()
 
-      remaining_tools = self._get_remaining_tools_from(activated_tools)
+      remaining_tools = self._get_remaining_tools()
       completion = self._completion_api_with_backoff(
         model=self.model,
         messages=self.render_message_list(),

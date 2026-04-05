@@ -2,7 +2,7 @@ import random
 import tempfile
 from pathlib import Path
 
-from harness.lms.agent import AgentHooks
+from harness.lms.agent import AgentConfig, AgentHooks
 from harness.lms.skill import SKILL_FILE
 from harness.lms.tool import (
   FuncToolCallException,
@@ -128,21 +128,18 @@ class FinishTask(StatelessFuncToolBase):
     return result
 
 
-def test_weather(agent_class, model: str):
+def test_weather(config: AgentConfig):
   """Demo: tools only — agent uses get_weather + get_average directly."""
-  lm = agent_class(model=model, debug_mode=True)
+  lm = config.create_agent(
+    tools=[(GetWeather(), 100), (GetAverage(), 100), (FinishTask(), 1)],
+  )
   lm.console.print(f"Using model: {lm.model}")
-
-  lm.register_tool(GetWeather(), 100)
-  lm.register_tool(GetAverage(), 100)
-  lm.register_tool(FinishTask(), 1)
 
   lm.append_user_message(
     "Please calculate the average temperature of all *European* cities shown below: New York, Beijing, Zurich, Chongqing, London, Berlin, Toronto, Shanghai, Seoul."
   )
 
   lm.run(
-    ["get_average", "get_weather", "finish"],
     AgentHooks(
       post_response=lambda x: (
         True,
@@ -156,7 +153,7 @@ def test_weather(agent_class, model: str):
   )
 
 
-def test_skill(agent_class, model: str):
+def test_skill(config: AgentConfig):
   """Demo: skills — agent delegates to weather_report skill."""
 
   weather_report = """\
@@ -194,22 +191,20 @@ Steps:
     skill_dir.mkdir()
     (skill_dir / SKILL_FILE).write_text(weather_report)
 
-    lm = agent_class(model=model, debug_mode=True)
+    lm = config.create_agent(
+      tools=[(GetWeather(), 100), (GetAverage(), 100), (FinishTask(), 1)],
+      skills=[
+        (skill_dir, 1, 5)
+      ],  # Allow the skill to be called once, and each tool inside the skill can be called up to 5 times
+    )
     lm.console.print(f"Using model: {lm.model}")
 
-    # Register the base tools that skills can use
-    lm.register_tool(GetWeather(), 100)
-    lm.register_tool(FinishTask(), 1)
-
-    # Load and register skills
-    sk_name = lm.register_skill(skill_dir, 10)
-
     lm.append_user_message(
-      "Give me a weather report for all European cities for 2026-03-17."
+      "Give me a weather report for all European cities for 2026-03-17. "
+      "Prefer weather-report to get_weather."
     )
 
     lm.run(
-      [sk_name] + ["finish"],
       AgentHooks(
         post_response=lambda x: (
           True,
@@ -243,13 +238,19 @@ if __name__ == "__main__":
   if args.driver == "openai":
     from harness.lms.openai_generic import GPTGenericAgent
 
-    agent_class = GPTGenericAgent
+    driver_class = GPTGenericAgent
   elif args.driver == "anthropic":
     from harness.lms.anthropic_generic import ClaudeGenericAgent
 
-    agent_class = ClaudeGenericAgent
+    driver_class = ClaudeGenericAgent
+
+  config = AgentConfig(
+    driver_class=driver_class,
+    model=args.model,
+    debug_mode=True,
+  )
 
   if args.demo == "weather":
-    test_weather(agent_class, args.model)
+    test_weather(config)
   elif args.demo == "skill":
-    test_skill(agent_class, args.model)
+    test_skill(config)

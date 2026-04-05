@@ -1,10 +1,11 @@
+from __future__ import annotations
+
 import os
-import sys
 import tempfile
 from abc import abstractmethod
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable, List, Literal, Tuple, Union
+from typing import Callable, List, Literal, Optional, Tuple, Type, Union
 
 from tenacity import (
   retry,
@@ -96,24 +97,56 @@ ReasoningEffort = Literal[
 ]
 
 
-class AgentBase:
-  def __init__(
+@dataclass(frozen=True)
+class AgentConfig:
+  """Immutable configuration for creating agents.
+
+  Holds model parameters and the concrete agent class. Call create_agent()
+  to get a fresh agent instance with its own history, tools, and meter.
+  """
+
+  driver_class: Type[AgentBase]
+  model: str
+  temperature: float = 0
+  top_p: float = 0.95
+  max_completion_tokens: int = 8092
+  reasoning_effort: ReasoningEffort = "NOT_GIVEN"
+  debug_mode: bool = False
+
+  def create_agent(
     self,
-    model: str,
-    *,
-    temperature: float = 0,  # Higher temperature means more randomness
-    top_p: float = 0.95,  # Top cumulative probability for nucleus sampling
-    max_completion_tokens: int = 8092,  # Max completion tokens (including reasoning and tool calls)
-    reasoning_effort: ReasoningEffort = "NOT_GIVEN",  # Reasoning effort level: NOT_GIVEN, none, minimal, low, medium, high, and xhigh
-    debug_mode: bool = False,
-  ):
-    self.model = model
-    self.history = []
-    self.temperature = temperature
-    self.top_p = top_p
-    self.max_completion_tokens = max_completion_tokens
-    self.reasoning_effort = reasoning_effort
-    assert reasoning_effort in [
+    tools: List[Tuple[FuncToolBase, int]] | None = None,
+    skills: List[Tuple[Path, int, Optional[int]]] | None = None,
+  ) -> AgentBase:
+    """Create a fresh agent instance from this configuration.
+
+    Optionally register tools and skills in one call::
+
+        config.create_agent(
+          tools=[(ReadTool(), 250), (EditTool(), 25)],
+          # The last parameter overrides per-tool budget of the skill
+          skills=[(skill1_path, 10, 250), (skill2_path, 10, None)],
+        )
+
+    Args:
+      tools: List of (tool, call_budget) to register.
+      skills: List of (skill_path, call_budget, per_tool_budget) to register.
+        call_budget controls how many times the skill itself can be called.
+        per_tool_budget overrides the tool-budget property in the skill's
+        SKILL.md frontmatter, controlling the per-tool call limit inside the
+        skill sub-loop. If per_tool_budget is None, keep the original budget.
+    """
+    agent = self.driver_class(self)
+    for tool, budget in tools or []:
+      agent.register_tool(tool, budget)
+    for path, budget, tool_budget in skills or []:
+      agent.register_skill(path, budget, tool_budget=tool_budget)
+    return agent
+
+
+class AgentBase:
+  def __init__(self, config: AgentConfig):
+    assert config.reasoning_effort in [
       "NOT_GIVEN",
       "none",
       "minimal",
@@ -122,13 +155,20 @@ class AgentBase:
       "high",
       "xhigh",
     ], (
-      f"Invalid reasoning_effort: {reasoning_effort}; "
+      f"Invalid reasoning_effort: {config.reasoning_effort}; "
       f"must be one of NOT_GIVEN, none, minimal, low, medium, high, and xhigh."
     )
+    self.config = config
+    self.model = config.model
+    self.temperature = config.temperature
+    self.top_p = config.top_p
+    self.max_completion_tokens = config.max_completion_tokens
+    self.reasoning_effort = config.reasoning_effort
+    self.debug_mode = config.debug_mode
+    self.history = []
     self.tools = ToolRegistry()
-    self.debug_mode = debug_mode
     self.meter: AgentMeter = GlobalMeter.instance().create_meter()
-    self.console = get_boxed_console(debug_mode=debug_mode)
+    self.console = get_boxed_console(debug_mode=config.debug_mode)
 
   def is_debug_mode(self):
     return self.debug_mode
@@ -141,25 +181,56 @@ class AgentBase:
     self.debug_mode = False
     self.console = get_boxed_console(debug_mode=False)
 
-  def register_tool(self, tool: FuncToolBase, budget: int = sys.maxsize):
+  def register_tool(self, tool: FuncToolBase, budget: Optional[int] = None):
+    """Register a tool as callable by the agent.
+
+    Args:
+      tool: The tool object to register.
+      budget: Max number of times this tool can be called before it's
+        exhausted. None means unlimited.
+    """
     self.console.print(
-      "Registering tool: " + tool.name() + " (budget=" + str(budget) + ")"
+      "Registering tool: "
+      + tool.name()
+      + " (budget="
+      + ToolRegistry.format_budget(budget)
+      + ")"
     )
     self.tools.register(tool, budget)
     return tool.name()
 
-  def register_skill(self, path: Path, budget: int = sys.maxsize) -> str:
+  def register_skill(
+    self,
+    path: Path,
+    budget: Optional[int] = None,
+    tool_budget: Optional[int] = None,
+  ) -> str:
+    """Register a skill from a SKILL.md file as a callable tool.
+
+    Args:
+      path: Directory containing the skill definition (SKILL.md).
+      budget: Max number of times the skill itself can be called.
+        None means unlimited.
+      tool_budget: If set, overrides the ``tool-budget`` property in
+        the skill's SKILL.md frontmatter, controlling the per-tool call
+        limit inside the skill sub-loop.
+    """
     self.console.print(
-      "Registering skill: " + path.name + " (budget=" + str(budget) + ")"
+      "Registering skill: "
+      + path.name
+      + " (budget="
+      + ToolRegistry.format_budget(budget)
+      + ")"
     )
     skill = load_skill(path)
+    if tool_budget is not None:
+      skill.budget = tool_budget
     self.register_tool(SkillTool(skill, self), budget)
     return skill.name
 
   @abstractmethod
   def run(
     self,
-    activated_tools: List[str],
     hooks: AgentHooks,
   ) -> str:
     """
@@ -218,20 +289,13 @@ class AgentBase:
       res = f"{header}\n...[output truncated, full output saved to {path}]...\n{footer}"
     return res
 
-  def _get_remaining_tools_from(self, activated_tools: List[str]) -> List[str]:
-    # Ensure we always pass the correct tool names
-    for tool in activated_tools:
-      self.tools.get(tool)  # This will raise if the tool is not registered
-    remaining = [
-      self.tools.get(tool)
-      for tool in self.tools.list(ignore_budget=False)
-      if tool in activated_tools
-    ]
+  def _get_remaining_tools(self) -> list[FuncToolBase]:
+    remaining = [self.tools.get(name) for name in self.tools.list(ignore_budget=False)]
     self.console.print(
       "Remaining tools: "
       + str(
         [
-          f"{tool.name()}[{self.tools.get_remaining_budget(tool.name())}]"
+          f"{tool.name()}[{ToolRegistry.format_budget(self.tools.get_remaining_budget(tool.name()))}]"
           for tool in remaining
         ]
       )
@@ -243,89 +307,74 @@ class AgentBase:
     skill_name: str,
     skill_inst: str,
     tool_names: List[str],
-    tool_budget: int,
+    tool_budget: Optional[int],
     context_aware: bool = True,
   ) -> str:
-    """Run a skill sub-loop with a specialized instruction and tool subset.
+    """Run a skill in a freshly spawned agent.
 
-    Saves the outer agent state, runs a sub-loop with the given instruction and
-    tools, then restores the outer state and returns the skill's result.
+    Creates a new agent from the same config, registers only the skill's
+    tools, and runs the sub-loop. The outer agent is never mutated.
 
-    When context aware is False, the skill sub-loop will not have access to the conversation history of the outer loop, effectively making it a standalone agent with only the provided instruction and tools. When context aware is True, the skill sub-loop will have access to the conversation history of the outer loop, allowing it to use the context from previous interactions while still restricting the tools to the provided subset
+    When context_aware is True, the new agent's history is seeded with a
+    copy of the outer agent's history, allowing it to use context from
+    previous interactions.
     """
     from harness.lms.skill import DoneTool
 
-    # Save outer state
-    saved_history = self.history
-    saved_tools = self.tools
+    sub = self.config.create_agent()
+
+    # Seed history from outer agent if context-aware
+    if context_aware:
+      sub.history = self.history.copy()
+
+    # Register tools for the sub-agent
+    if not tool_names:
+      for name in self.tools.list():
+        if name == skill_name:
+          continue
+        tool_obj = self.tools.get(name).fresh()
+        sub.register_tool(tool_obj, tool_budget)
+    else:
+      missing_tools = []
+      for name in tool_names:
+        if self.tools.has(name):
+          tool_obj = self.tools.get(name).fresh()
+          sub.register_tool(tool_obj, tool_budget)
+        else:
+          missing_tools.append(name)
+      if missing_tools:
+        self.console.print(
+          f"Warning: The following tools required by the skill {skill_name} are "
+          f"not registered in the outer agent and won't be available in the skill sub-loop: {missing_tools}",
+          color="yellow",
+        )
+
+    sub.register_tool(DoneTool(), 1)
+    sub.append_user_message(skill_inst)
+
+    done_result = [None]
+
+    def post_response(_: str):
+      return True, "Please continue. Call the `skill_done` tool when finished."
+
+    def post_tool_call(name: str, _: str, result: str):
+      if name == "skill_done":
+        done_result[0] = result
+        return False, result
+      return True, result
 
     try:
-      # Setup sub-loop state
-      if context_aware:
-        # Inject the context and use a copy of the history to avoid modifying the outer loop's history
-        self.history = saved_history.copy()
-      else:
-        self.history = []
-      self.tools = ToolRegistry()
+      sub.run(
+        AgentHooks(post_response=post_response, post_tool_call=post_tool_call),
+      )
+    except (ReachRoundLimit, ReachTokenLimit):
+      pass  # Budget exhausted
 
-      if not tool_names:
-        # Register all tools from the outer registry if no specific tool subset is provided
-        for name in saved_tools.list():
-          if name == skill_name:
-            continue  # Avoid registering the skill tool itself in the sub-loop
-          tool_obj = saved_tools.get(name).fresh()
-          self.tools.register(tool_obj, tool_budget)
-      else:
-        # Register only the skill's tool subset from the outer registry
-        missing_tools = []
-        for name in tool_names:
-          if name in saved_tools.tools:
-            tool_obj = saved_tools.get(name).fresh()
-            self.tools.register(tool_obj, tool_budget)
-          else:
-            missing_tools.append(name)
-        if missing_tools:
-          self.console.print(
-            f"Warning: The following tools required by the skill {skill_name} are "
-            f"not registered in the outer agent and won't be available in the skill sub-loop: {missing_tools}",
-            color="yellow",
-          )
+    result = done_result[0]
+    if result is None:
+      result = "Error: budget exhausted without producing a result"
 
-      # Register the done tool
-      self.tools.register(DoneTool(), 1)
-
-      # Inject the skill instruction
-      self.append_user_message(skill_inst)
-
-      activated_tools = self.tools.list()
-      done_result = [None]
-
-      def post_response(_: str):
-        return True, "Please continue. Call the `skill_done` tool when finished."
-
-      def post_tool_call(name: str, _: str, result: str):
-        if name == "skill_done":
-          done_result[0] = result
-          return False, result
-        return True, result
-
-      try:
-        self.run(
-          activated_tools,
-          AgentHooks(post_response=post_response, post_tool_call=post_tool_call),
-        )
-      except (ReachRoundLimit, ReachTokenLimit):
-        pass  # Budget exhausted
-
-      result = done_result[0]
-      if result is None:
-        result = "Error: budget exhausted without producing a result"
-
-      return result
-    finally:
-      # Restore outer state
-      self.history = saved_history
-      self.tools = saved_tools
+    return result
 
   @retry(wait=wait_random_exponential(min=1, max=60), stop=stop_after_attempt(3))
   def _completion_api_with_backoff(self, **kwargs):

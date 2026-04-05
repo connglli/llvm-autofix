@@ -147,3 +147,17 @@ class GlobalMeter:
       "output_tokens": self.total_output_tokens,
       "total_tokens": self.total_tokens,
     }
+
+  @staticmethod
+  def format_status(agent_meter: AgentMeter) -> str:
+    """Format a status line showing both agent and global meter stats."""
+    m = agent_meter
+    gs = GlobalMeter.instance().stats()
+    return (
+      f"Executing round #{m.chat_rounds} | "
+      f"current.input_tokens={m.input_tokens}, current.cached_tokens={m.cached_tokens}, "
+      f"current.output_tokens={m.output_tokens}, current.total_tokens={m.total_tokens} | "
+      f"global.rounds={gs['chat_rounds']}, global.input_tokens={gs['input_tokens']}, "
+      f"global.cached_tokens={gs['cached_tokens']}, global.output_tokens={gs['output_tokens']}, "
+      f"global.total_tokens={gs['total_tokens']}"
+    )

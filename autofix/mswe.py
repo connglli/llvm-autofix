@@ -75,16 +75,7 @@ class MyModel(LitellmModel):
 
     response = super()._query(messages, **kwargs)
 
-    gm = GlobalMeter.instance()
-    m = self.meter
-    console.print(
-      f"Executing round #{m.chat_rounds} | "
-      f"current.input_tokens={m.input_tokens}, current.cached_tokens={m.cached_tokens}, "
-      f"current.output_tokens={m.output_tokens}, current.total_tokens={m.total_tokens} | "
-      f"global.rounds={gm.total_rounds}, global.input_tokens={gm.total_input_tokens}, "
-      f"global.cached_tokens={gm.total_cached_tokens}, global.output_tokens={gm.total_output_tokens}, "
-      f"global.total_tokens={gm.total_tokens}"
-    )
+    console.print(GlobalMeter.format_status(self.meter))
     usage = getattr(response, "usage", None)
     if usage:
       cached = 0
