@@ -23,6 +23,8 @@ from harness.lms.tool import (
   FuncToolSpec,
   StatelessFuncToolBase,
 )
+from harness.tools.subagent import SubAgentTool
+from harness.tools.todo import TodoTool
 from harness.utils.console import get_boxed_console
 
 # - ===============================================
@@ -81,6 +83,10 @@ ENABLED_REPAIR_TOOLS = {
   "langref",
   # Edit tools
   "edit",
+  # Plan tools
+  "todo",
+  # Subagent tools
+  "subagent",
   # Test tools
   "reset",
   "test",
@@ -93,7 +99,7 @@ ENABLED_REPAIR_TOOLS = {
   "submit_patchreport",
 }
 ALL_ENABLED_TOOLS = ENABLED_REASON_TOOLS | ENABLED_REPAIR_TOOLS
-HEAVYWEIGHT_TOOLS = {"test"}
+HEAVYWEIGHT_TOOLS = {"test", "subagent"}
 LIGHTWEIGHT_TOOLS = ALL_ENABLED_TOOLS - HEAVYWEIGHT_TOOLS
 # Enabled skills per stage and their categories
 ENABLED_REASON_SKILLS: set[str] = set()
@@ -756,10 +762,13 @@ def _create_repair_agent(agent_config: AgentConfig, harness: Harness) -> AgentBa
   """Create a fresh agent with repair-stage tools and skills."""
   tools = _get_enabled_tools(harness, ENABLED_REPAIR_TOOLS)
   tools.append((SubmitPatchReportTool(), MAX_TCS_LIGHTWEIGHT_TOOLS))
-  return agent_config.create_agent(
+  tools.append((TodoTool(), MAX_TCS_LIGHTWEIGHT_TOOLS))
+  agent = agent_config.create_agent(
     tools=tools,
     skills=_get_enabled_skills(harness, ENABLED_REPAIR_SKILLS),
   )
+  agent.register_tool(SubAgentTool(agent), MAX_TCS_HEAVYWEIGHT_TOOLS)
+  return agent
 
 
 def autofix(

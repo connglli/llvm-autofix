@@ -99,7 +99,7 @@ prompts:
 
     You should create a clean, minimal patch that properly addresses the root cause while maintaining LLVM's code quality standards. Follow these steps:
 
-    1. **Analyze**: Analyze the provided information to fully understand the bug's cause and effect. You may use provided tools to explore the codebase for more context.
+    1. **Analyze**: Analyze the provided information to fully understand the bug's cause and effect. You may use provided tools to explore the codebase for more context. For complex bugs that involve multiple files or components, consider using the `todo` tool to plan your steps and the `subagent` tool to delegate focused investigation tasks (e.g., reading and summarizing a subsystem) without cluttering your main context.
     2. **Propose a Fix**: Outline your proposed solution. Explain your reasoning and the specific changes you intend to make.
     3. **Implement**: Use the `edit` tool to apply your proposed changes to the code.
     4. **Verify**: Use the `test` tool to confirm that your patch:
