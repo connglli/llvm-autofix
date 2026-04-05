@@ -5,7 +5,7 @@ Tools are callable functions exposed to the agent. Each tool is a Python class t
 - **Stateless** — no mutable state between calls. Inherit from `StatelessFuncToolBase`.
 - **Stateful** — holds mutable state (e.g. a todo list). Inherit from `StatefulFuncToolBase` and implement `fresh()` to return a new, clean instance.
 
-When a skill sub-loop runs, every tool is `fresh()`-ed so the sub-loop gets clean state. Stateless tools return `self`; stateful tools return a new instance.
+When a skill or sub-agent sub-loop runs, every tool is `fresh()`-ed so the sub-loop gets clean state. Stateless tools return `self`; stateful tools return a new instance. `SkillTool` instances are rebound to the sub-agent via `for_agent()` instead of `fresh()`, since they hold an agent reference.
 
 ## Writing a Stateless Tool
 
@@ -68,7 +68,7 @@ Avoid mentioning implementation details (binary names, internal paths) unless th
 ## Naming Conventions
 
 ### File names
-- Generic tools (file I/O, search, shell): plain name, e.g. `edit.py`, `bash.py`.
+- Generic tools (file I/O, search, shell): plain name, e.g. `edit.py`, `bash.py`, `subagent.py`.
 - LLVM-specific tools: `llvm_` prefix, e.g. `llvm_debug.py`, `llvm_opt.py`.
 
 ### Tool names (exposed to the agent)
@@ -116,6 +116,30 @@ class MyLlvmTool(LlvmBuildDirMixin, StatelessFuncToolBase):
 
 `LlvmBuildDirMixin` requires a completed LLVM build and validates the build directory at construction time.
 
-## Registering Tools
+## Harness-Managed vs Client-Managed Tools
 
-Tools are registered with the harness at runtime. See `Harness.make_tools()` for the current registration logic.
+**Harness-managed** tools are created by `Harness.make_tools()`. Their availability is gated by harness state (build dir, debugger, fixenv). Clients select from them by name and assign budgets.
+
+| Dependency | Tools |
+|---|---|
+| Always | `read`, `list`, `find`, `ripgrep`, `edit`, `write`, `bash` |
+| build_dir | `optimize_ir`, `compile_ir`, `interpret_ir` |
+| alive-tv | `verify_ir` |
+| fixenv | `test`, `reset`, `preview`, `langref` |
+| debugger | `code`, `docs`, `debug`, `eval` |
+
+**Client-managed** tools are defined and registered by the client (e.g. `autofix/mini.py`), not by the harness. They typically encode workflow-specific logic that doesn't belong in the shared harness.
+
+| Tool | File | Description |
+|---|---|---|
+| `subagent` | `subagent.py` | Spawns a stateless sub-agent. Requires an agent reference at construction time. |
+| `todo` | `todo.py` | Stateful todo list for agent self-tracking. |
+| `askq` | `askq.py` | Ask the user a question. |
+| *(app-defined)* | *(in client code)* | e.g. `submit_analysis`, `submit_patchreport` in autofix. |
+
+Client-managed tools are registered directly on the agent after creation:
+
+```python
+agent = agent_config.create_agent(tools=harness_tools, skills=skills)
+agent.register_tool(SubAgentTool(agent), budget=10)
+```

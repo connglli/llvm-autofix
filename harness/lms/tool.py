@@ -205,6 +205,12 @@ class ToolRegistry:
       result = "Success: <No output>"
     return result
 
+  def consume_budget(self, name: str):
+    """Decrement the remaining budget for a tool by one (no tool execution)."""
+    self._ensure_registered(name)
+    if self.tools[name][1] is not None and self.tools[name][1] > 0:
+      self.tools[name][1] -= 1
+
   def _ensure_remaining_budget(self, name: str):
     self._ensure_registered(name)
     if self.tools[name][1] is not None and self.tools[name][1] <= 0:

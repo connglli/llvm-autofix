@@ -32,7 +32,7 @@ class Skill:
   )
 
 
-class DoneTool(StatelessFuncToolBase):
+class SkillDoneTool(StatelessFuncToolBase):
   """Special tool that signals skill sub-loop termination."""
 
   def spec(self) -> FuncToolSpec:
@@ -60,6 +60,10 @@ class SkillTool(StatelessFuncToolBase):
     self.skill = skill
     self.agent = agent
     self.inject_materials = inject_materials
+
+  def for_agent(self, agent: GenericAgent) -> SkillTool:
+    """Return a new SkillTool bound to a different agent."""
+    return SkillTool(self.skill, agent, self.inject_materials)
 
   def spec(self) -> FuncToolSpec:
     return FuncToolSpec(

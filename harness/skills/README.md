@@ -66,7 +66,7 @@ If a skill declares no parameters, a default optional `argument: str` parameter 
 
 ## Allowed Tools and Tool Budget
 
-The `allowed-tools` field lists the tool names the skill is permitted to call. Only tools registered with the agent at runtime are available regardless of what is listed here. If omitted, the skill has access to all tools registered with the agent. The `tool-budget` field limits how many total tool calls the skill can make for each tool during execution. If omitted, there is no limit on tool usage.
+The `allowed-tools` field lists the tool names (including skills) the current skill is permitted to call. Only tools registered with the agent at runtime are available regardless of what is listed here. If omitted, the skill has access to all tools registered with the agent. The `tool-budget` field limits how many total tool calls the skill can make for each tool during execution. If omitted, there is no limit on tool usage.
 
 ## Context
 

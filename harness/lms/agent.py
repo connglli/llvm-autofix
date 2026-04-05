@@ -319,7 +319,7 @@ class AgentBase:
     copy of the outer agent's history, allowing it to use context from
     previous interactions.
     """
-    from harness.lms.skill import DoneTool
+    from harness.lms.skill import SkillDoneTool, SkillTool
 
     sub = self.config.create_agent()
 
@@ -328,18 +328,22 @@ class AgentBase:
       sub.history = self.history.copy()
 
     # Register tools for the sub-agent
+    def _fresh_for_sub(name: str) -> FuncToolBase:
+      tool_obj = self.tools.get(name)
+      if isinstance(tool_obj, SkillTool):
+        return tool_obj.for_agent(sub)
+      return tool_obj.fresh()
+
     if not tool_names:
       for name in self.tools.list():
         if name == skill_name:
           continue
-        tool_obj = self.tools.get(name).fresh()
-        sub.register_tool(tool_obj, tool_budget)
+        sub.register_tool(_fresh_for_sub(name), tool_budget)
     else:
       missing_tools = []
       for name in tool_names:
         if self.tools.has(name):
-          tool_obj = self.tools.get(name).fresh()
-          sub.register_tool(tool_obj, tool_budget)
+          sub.register_tool(_fresh_for_sub(name), tool_budget)
         else:
           missing_tools.append(name)
       if missing_tools:
@@ -348,10 +352,12 @@ class AgentBase:
           f"not registered in the outer agent and won't be available in the skill sub-loop: {missing_tools}",
           color="yellow",
         )
+    sub.register_tool(SkillDoneTool(), 1)
 
-    sub.register_tool(DoneTool(), 1)
+    # Seed the skill invocation as user message
     sub.append_user_message(skill_inst)
 
+    # Run sub-agent loop
     done_result = [None]
 
     def post_response(_: str):

@@ -187,25 +187,32 @@ components = h.llvmcode.infer_related_components(["llvm/lib/Transforms/Scalar/GV
 
 ## Tools
 
-`h.make_tools()` returns all tool instances available given the current state:
+`h.make_tools()` returns all **harness-managed** tool instances available given the current state:
 
 | Dependency | Tools provided |
 |---|---|
 | Always | `read`, `list`, `find`, `ripgrep`, `edit`, `write`, `bash` |
-| build_dir | `optimize_ir`, `compile_ir`, `interpret_ir`, `verify_ir` |
+| build_dir | `optimize_ir`, `compile_ir`, `interpret_ir` |
+| alive-tv | `verify_ir` |
 | fixenv | `test`, `reset`, `preview`, `langref` |
 | debugger | `code`, `docs`, `debug`, `eval` |
 
+Some tools are **client-managed** — they are defined in `harness/tools/` but not created by the harness because they require agent references or encode workflow-specific logic. These include `subagent` (sub-agent spawning), `todo` (stateful tracking), and `askq` (user interaction). See `harness/tools/README.md` for the full list. Clients register them directly on the agent after creation.
+
 ```python
-# Get all tools
+# Get all harness-managed tools
 tools = h.make_tools()
 
 # Get a single tool by name
 tester = h.make_tool("test")
 
-# Register tools into an agent with budgets
+# Register harness-managed tools into an agent with budgets
 for tool in h.make_tools():
     agent.register_tool(tool, budget=250)
+
+# Register client-managed tools separately
+from harness.tools.subagent import SubAgentTool
+agent.register_tool(SubAgentTool(agent), budget=10)
 ```
 
 ## Skills
