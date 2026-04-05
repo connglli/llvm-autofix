@@ -2,6 +2,7 @@ import random
 import tempfile
 from pathlib import Path
 
+from harness.lms.agent import AgentHooks
 from harness.lms.skill import SKILL_FILE
 from harness.lms.tool import (
   FuncToolCallException,
@@ -67,7 +68,7 @@ class GetWeather(StatelessFuncToolBase):
       "Perth": 26,
     }.get(location, None)
     if temperature is None:
-      raise FuncToolCallException("Error: Unknown location " + location)
+      raise FuncToolCallException("Unknown location " + location)
     if celsius:
       temperature = f"{temperature}°C"
     else:
@@ -142,13 +143,15 @@ def test_weather(agent_class, model: str):
 
   lm.run(
     ["get_average", "get_weather", "finish"],
-    lambda x: (
-      True,
-      "Error: You're NOT calling any tool or you called with an INCORRECT format. Always select a tool to call with correct Tool Call Format. If you're done with the task, call the 'finish' tool with the result.",
-    ),
-    lambda tool, args, res: (
-      tool != "finish",
-      f"Good. The model gives the result: {res}" if tool == "finish" else res,
+    AgentHooks(
+      post_response=lambda x: (
+        True,
+        "Error: You're NOT calling any tool or you called with an INCORRECT format. Always select a tool to call with correct Tool Call Format. If you're done with the task, call the 'finish' tool with the result.",
+      ),
+      post_tool_call=lambda tool, args, res: (
+        tool != "finish",
+        f"Good. The model gives the result: {res}" if tool == "finish" else res,
+      ),
     ),
   )
 
@@ -158,7 +161,7 @@ def test_skill(agent_class, model: str):
 
   weather_report = """\
 ---
-name: weather_report
+name: weather-report
 description: Fetch weather for all cities in a given region and produce a summary report
 parameters:
   - name: region
@@ -171,6 +174,7 @@ parameters:
     description: The date in YYYY-mm-dd format
 allowed-tools: [get_weather]
 tool-budget: 20
+context: fork
 ---
 
 You are a weather analyst. Your task is to produce a summary weather report.
@@ -186,7 +190,7 @@ Steps:
 """
   # Write weather_report skill into a temporary directory for loading
   with tempfile.TemporaryDirectory() as tmpdir:
-    skill_dir = Path(tmpdir) / "weather_report"
+    skill_dir = Path(tmpdir) / "weather-report"
     skill_dir.mkdir()
     (skill_dir / SKILL_FILE).write_text(weather_report)
 
@@ -206,26 +210,46 @@ Steps:
 
     lm.run(
       [sk_name] + ["finish"],
-      lambda x: (
-        True,
-        "Error: You're NOT calling any tool or you called with an INCORRECT format. Always select a tool to call with correct Tool Call Format. If you're done with the task, call the 'finish' tool with the result.",
-      ),
-      lambda tool, args, res: (
-        tool != "finish",
-        f"Good. The model gives the result: {res}" if tool == "finish" else res,
+      AgentHooks(
+        post_response=lambda x: (
+          True,
+          "Error: You're NOT calling any tool or you called with an INCORRECT format. Always select a tool to call with correct Tool Call Format. If you're done with the task, call the 'finish' tool with the result.",
+        ),
+        post_tool_call=lambda tool, args, res: (
+          tool != "finish",
+          f"Good. The model gives the result: {res}" if tool == "finish" else res,
+        ),
       ),
     )
 
 
 if __name__ == "__main__":
-  import sys
+  from argparse import ArgumentParser
 
-  from harness.lms.openai_generic import GPTGenericAgent
+  parser = ArgumentParser(description="Demo for agent tools and skills.")
+  parser.add_argument("demo", choices=["weather", "skill"], help="Which demo to run.")
+  parser.add_argument(
+    "--model", "-m", default="gpt-4.1-mini", help="Model name (default: gpt-4.1-mini)."
+  )
+  parser.add_argument(
+    "--driver",
+    "-D",
+    choices=["openai", "anthropic"],
+    default="openai",
+    help="LLM API driver (default: openai).",
+  )
+  args = parser.parse_args()
 
-  demo = sys.argv[1] if len(sys.argv) > 1 else "skill"
-  if demo == "weather":
-    test_weather(GPTGenericAgent, "gpt-5-mini")
-  elif demo == "skill":
-    test_skill(GPTGenericAgent, "gpt-5-mini")
-  else:
-    print(f"Unknown demo: {demo}. Use 'weather' or 'skill'.")
+  if args.driver == "openai":
+    from harness.lms.openai_generic import GPTGenericAgent
+
+    agent_class = GPTGenericAgent
+  elif args.driver == "anthropic":
+    from harness.lms.anthropic_generic import ClaudeGenericAgent
+
+    agent_class = ClaudeGenericAgent
+
+  if args.demo == "weather":
+    test_weather(agent_class, args.model)
+  elif args.demo == "skill":
+    test_skill(agent_class, args.model)

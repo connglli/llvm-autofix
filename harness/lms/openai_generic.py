@@ -16,8 +16,6 @@ class GPTGenericAgent(GenericAgent):
     top_p: float = 0.95,
     max_completion_tokens: int = 8092,
     reasoning_effort: ReasoningEffort = "NOT_GIVEN",
-    token_limit: int = -1,
-    round_limit: int = -1,
     debug_mode: bool = False,
   ):
     super().__init__(
@@ -26,8 +24,6 @@ class GPTGenericAgent(GenericAgent):
       top_p=top_p,
       max_completion_tokens=max_completion_tokens,
       reasoning_effort=reasoning_effort,
-      token_limit=token_limit,
-      round_limit=round_limit,
       debug_mode=debug_mode,
     )
     if self.reasoning_effort == "NOT_GIVEN":
@@ -54,19 +50,17 @@ class GPTGenericAgent(GenericAgent):
     for chunk in completion:
       # Update tokens that we have consumed
       if chunk.usage:
-        if chunk.usage.prompt_tokens:
-          self.chat_stats["input_tokens"] += chunk.usage.prompt_tokens
+        cached = 0
         if (
           chunk.usage.prompt_tokens_details
           and chunk.usage.prompt_tokens_details.cached_tokens
         ):
-          self.chat_stats["cached_tokens"] += (
-            chunk.usage.prompt_tokens_details.cached_tokens
-          )
-        if chunk.usage.completion_tokens:
-          self.chat_stats["output_tokens"] += chunk.usage.completion_tokens
-        if chunk.usage.total_tokens:
-          self.chat_stats["total_tokens"] += chunk.usage.total_tokens
+          cached = chunk.usage.prompt_tokens_details.cached_tokens
+        self.meter.record_usage(
+          input_tokens=chunk.usage.prompt_tokens or 0,
+          cached_tokens=cached,
+          output_tokens=chunk.usage.completion_tokens or 0,
+        )
 
       # Get assistant's reasoning and answer from the response content
       if not chunk.choices:

@@ -16,6 +16,7 @@ from harness.llvm import (
 )
 from harness.llvm.debugger import DebuggerBase, StackTrace
 from harness.lms.agent import AgentBase, AgentHooks
+from harness.lms.meter import GlobalMeter
 from harness.lms.tool import (
   FuncToolBase,
   FuncToolCallException,
@@ -853,14 +854,17 @@ def main():
   else:
     panic(f"Unsupported LLM API driver: {args.driver}")
 
+  GlobalMeter.configure(
+    token_limit=AGENT_MAX_CONSUMED_TOKENS,
+    round_limit=AGENT_MAX_CHAT_ROUNDS,
+  )
+
   agent = agent_class(
     args.model,
     temperature=AGENT_TEMPERATURE,
     top_p=AGENT_TOP_P,
     max_completion_tokens=AGENT_MAX_COMPLETION_TOKENS,
     reasoning_effort=AGENT_REASONINT_EFFORT,
-    token_limit=AGENT_MAX_CONSUMED_TOKENS,
-    round_limit=AGENT_MAX_CHAT_ROUNDS,
     debug_mode=args.debug,
   )
 
@@ -925,11 +929,12 @@ def main():
 
       raise e
     finally:
-      stats.chat_rounds = agent.chat_stats["chat_rounds"]
-      stats.input_tokens = agent.chat_stats["input_tokens"]
-      stats.output_tokens = agent.chat_stats["output_tokens"]
-      stats.cached_tokens = agent.chat_stats["cached_tokens"]
-      stats.total_tokens = agent.chat_stats["total_tokens"]
+      gm = GlobalMeter.instance()
+      stats.chat_rounds = gm.total_rounds
+      stats.input_tokens = gm.total_input_tokens
+      stats.output_tokens = gm.total_output_tokens
+      stats.cached_tokens = gm.total_cached_tokens
+      stats.total_tokens = gm.total_tokens
       stats.total_time_sec = time.time() - stats.total_time_sec
       if stats_path:
         with stats_path.open("w") as fout:

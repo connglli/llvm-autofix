@@ -31,7 +31,7 @@ from autofix.mini import (
   RunStats,
 )
 from harness.llvm.harness import Harness
-from harness.lms.agent import ReachRoundLimit, ReachTokenLimit
+from harness.lms.meter import GlobalMeter
 from harness.lms.tool import FuncToolCallException
 from harness.tools.bash import FORBIDDEN_TOOLS
 from harness.utils import bashlex
@@ -54,7 +54,7 @@ EDITING_TOOLS = [
 
 
 class MyModel(LitellmModel):
-  def __init__(self, model: str, *, provider="openai", token_limit=-1, round_limit=-1):
+  def __init__(self, model: str, *, provider="openai"):
     super().__init__(
       model_name=model,
       model_kwargs={
@@ -68,35 +68,33 @@ class MyModel(LitellmModel):
       },
       cost_tracking="ignore_errors",  # Ignore cost tracking errors, we have our own
     )
-    self.token_limit = token_limit
-    self.round_limit = round_limit
-    self.chat_stats = {
-      "chat_rounds": 0,
-      "input_tokens": 0,
-      "cached_tokens": 0,
-      "output_tokens": 0,
-      "total_tokens": 0,
-    }
+    self.meter = GlobalMeter.instance().create_meter()
 
   def _query(self, messages, **kwargs):
-    if self.round_limit > 0 and self.chat_stats["chat_rounds"] >= self.round_limit:
-      raise ReachRoundLimit()
-    if self.token_limit > 0 and self.chat_stats["total_tokens"] >= self.token_limit:
-      raise ReachTokenLimit()
+    self.meter.record_round()
 
     response = super()._query(messages, **kwargs)
 
+    gm = GlobalMeter.instance()
+    m = self.meter
     console.print(
-      f"Executing round #{self.chat_stats['chat_rounds']}, chat statistics so far: {self.chat_stats}"
+      f"Executing round #{m.chat_rounds} | "
+      f"current.input_tokens={m.input_tokens}, current.cached_tokens={m.cached_tokens}, "
+      f"current.output_tokens={m.output_tokens}, current.total_tokens={m.total_tokens} | "
+      f"global.rounds={gm.total_rounds}, global.input_tokens={gm.total_input_tokens}, "
+      f"global.cached_tokens={gm.total_cached_tokens}, global.output_tokens={gm.total_output_tokens}, "
+      f"global.total_tokens={gm.total_tokens}"
     )
-    self.chat_stats["chat_rounds"] += 1
     usage = getattr(response, "usage", None)
     if usage:
-      self.chat_stats["input_tokens"] += usage.prompt_tokens
+      cached = 0
       if usage.prompt_tokens_details:
-        self.chat_stats["cached_tokens"] += usage.prompt_tokens_details.cached_tokens
-      self.chat_stats["output_tokens"] += usage.completion_tokens
-      self.chat_stats["total_tokens"] += usage.total_tokens
+        cached = usage.prompt_tokens_details.cached_tokens
+      self.meter.record_usage(
+        input_tokens=usage.prompt_tokens,
+        cached_tokens=cached,
+        output_tokens=usage.completion_tokens,
+      )
 
     return response
 
@@ -143,8 +141,6 @@ class MyAgent(DefaultAgent):
       model=MyModel(
         model=model,
         provider=provider,
-        token_limit=AGENT_MAX_CONSUMED_TOKENS,
-        round_limit=AGENT_MAX_CHAT_ROUNDS,
       ),
       env=MyEnvironment(cwd=workdir),
       # IMPORTANT: Configurations except for `agent` should be configured programmatically.
@@ -257,6 +253,11 @@ def main():
     global console
     console = get_boxed_console(debug_mode=True)
 
+  GlobalMeter.configure(
+    token_limit=AGENT_MAX_CONSUMED_TOKENS,
+    round_limit=AGENT_MAX_CHAT_ROUNDS,
+  )
+
   if args.stats:
     if Path(args.stats).exists():
       panic(f"Stats file {args.stats} already exists.")
@@ -312,11 +313,12 @@ def main():
 
     raise e
   finally:
-    stats.chat_rounds = agent.model.chat_stats["chat_rounds"]
-    stats.input_tokens = agent.model.chat_stats["input_tokens"]
-    stats.output_tokens = agent.model.chat_stats["output_tokens"]
-    stats.cached_tokens = agent.model.chat_stats["cached_tokens"]
-    stats.total_tokens = agent.model.chat_stats["total_tokens"]
+    gm = GlobalMeter.instance()
+    stats.chat_rounds = gm.total_rounds
+    stats.input_tokens = gm.total_input_tokens
+    stats.output_tokens = gm.total_output_tokens
+    stats.cached_tokens = gm.total_cached_tokens
+    stats.total_tokens = gm.total_tokens
     stats.total_time_sec = time.time() - stats.total_time_sec
     if args.stats:
       with open(args.stats, "w") as fou:

@@ -12,6 +12,7 @@ from tenacity import (
   wait_random_exponential,
 )  # for exponential backoff
 
+from harness.lms.meter import AgentMeter, GlobalMeter, ReachRoundLimit, ReachTokenLimit
 from harness.lms.skill import SkillTool, load_skill
 from harness.lms.tool import FuncToolBase, ToolRegistry
 from harness.utils.console import get_boxed_console
@@ -90,16 +91,6 @@ class AgentHooks:
 # ---------------------------------------------------------------------------
 
 
-class ReachRoundLimit(StopIteration):
-  def __init__(self):
-    super().__init__("Reached the round limit for agent execution.")
-
-
-class ReachTokenLimit(StopIteration):
-  def __init__(self):
-    super().__init__("Reached the token limit for agent execution.")
-
-
 ReasoningEffort = Literal[
   "NOT_GIVEN", "none", "minimal", "low", "medium", "high", "xhigh"
 ]
@@ -114,8 +105,6 @@ class AgentBase:
     top_p: float = 0.95,  # Top cumulative probability for nucleus sampling
     max_completion_tokens: int = 8092,  # Max completion tokens (including reasoning and tool calls)
     reasoning_effort: ReasoningEffort = "NOT_GIVEN",  # Reasoning effort level: NOT_GIVEN, none, minimal, low, medium, high, and xhigh
-    token_limit: int = -1,  # Max total tokens (including input and output) for the entire conversation.
-    round_limit: int = -1,  # Max rounds of conversation (one round includes one assistant message and tool calls)
     debug_mode: bool = False,
   ):
     self.model = model
@@ -138,15 +127,7 @@ class AgentBase:
     )
     self.tools = ToolRegistry()
     self.debug_mode = debug_mode
-    self.token_limit = token_limit
-    self.round_limit = round_limit
-    self.chat_stats = {
-      "chat_rounds": 0,
-      "input_tokens": 0,
-      "cached_tokens": 0,
-      "output_tokens": 0,
-      "total_tokens": 0,
-    }
+    self.meter: AgentMeter = GlobalMeter.instance().create_meter()
     self.console = get_boxed_console(debug_mode=debug_mode)
 
   def is_debug_mode(self):

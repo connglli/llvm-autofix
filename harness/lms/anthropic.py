@@ -9,10 +9,9 @@ from harness.lms.agent import (
   AgentBase,
   AgentHooks,
   ChatMessageMessage,
-  ReachRoundLimit,
-  ReachTokenLimit,
   ReasoningEffort,
 )
+from harness.lms.meter import GlobalMeter
 
 
 @warnings.deprecated("Use ClaudeGenericAgent instead")
@@ -25,8 +24,6 @@ class ClaudeAgent(AgentBase):
     top_p: float = 0.95,
     max_completion_tokens: int = 8092,
     reasoning_effort: ReasoningEffort = "NOT_GIVEN",
-    token_limit: int = -1,
-    round_limit: int = -1,
     debug_mode: bool = False,
   ):
     super().__init__(
@@ -35,8 +32,6 @@ class ClaudeAgent(AgentBase):
       top_p=top_p,
       max_completion_tokens=max_completion_tokens,
       reasoning_effort=reasoning_effort,
-      token_limit=token_limit,
-      round_limit=round_limit,
       debug_mode=debug_mode,
     )
     if self.reasoning_effort == "NOT_GIVEN":
@@ -64,13 +59,18 @@ class ClaudeAgent(AgentBase):
             "content": message.content,
           }
         )
-    while self.round_limit <= 0 or self.chat_stats["chat_rounds"] <= self.round_limit:
+    while True:
+      gm = GlobalMeter.instance()
+      m = self.meter
       self.console.print(
-        f"Executing round #{self.chat_stats['chat_rounds']}, chat statistics so far: {self.chat_stats}"
+        f"Executing round #{m.chat_rounds} | "
+        f"current.input_tokens={m.input_tokens}, current.cached_tokens={m.cached_tokens}, "
+        f"current.output_tokens={m.output_tokens}, current.total_tokens={m.total_tokens} | "
+        f"global.rounds={gm.total_rounds}, global.input_tokens={gm.total_input_tokens}, "
+        f"global.cached_tokens={gm.total_cached_tokens}, global.output_tokens={gm.total_output_tokens}, "
+        f"global.total_tokens={gm.total_tokens}"
       )
-      self.chat_stats["chat_rounds"] += 1
-      if self.token_limit > 0 and self.chat_stats["total_tokens"] >= self.token_limit:
-        raise ReachTokenLimit()
+      self.meter.record_round()
 
       remaining_tools = self._get_remaining_tools_from(activated_tools)
       response = self._completion_api_with_backoff(
@@ -90,11 +90,10 @@ class ClaudeAgent(AgentBase):
       )
 
       # Update tokens that we have consumed
-      self.chat_stats["input_tokens"] += response.usage.input_tokens
-      self.chat_stats["cached_tokens"] += response.usage.cache_read_input_tokens
-      self.chat_stats["output_tokens"] += response.usage.output_tokens
-      self.chat_stats["total_tokens"] += (
-        response.usage.input_tokens + response.usage.output_tokens
+      self.meter.record_usage(
+        input_tokens=response.usage.input_tokens,
+        cached_tokens=response.usage.cache_read_input_tokens,
+        output_tokens=response.usage.output_tokens,
       )
       messages.append({"role": "assistant", "content": response.content})
 
@@ -144,8 +143,6 @@ class ClaudeAgent(AgentBase):
           )
         else:
           return content
-
-    raise ReachRoundLimit()
 
   def _completion_api(self, **kwargs):
     return self.client.messages.create(**kwargs)
