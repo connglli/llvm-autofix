@@ -66,6 +66,8 @@ ENABLED_REASON_TOOLS = {
   # Debugging tools
   "debug",
   "eval",
+  # Interaction tools
+  "ask",  # Enabled when --interactive
   # Report tool to finish the analysis
   "submit_analysis",
 }
@@ -95,6 +97,8 @@ ENABLED_REPAIR_TOOLS = {
   "optimize_ir",
   "verify_ir",
   "compile_ir",
+  # Interaction tools
+  "ask",  # Enabled when --interactive
   # Report tool to submit a patch report
   "submit_patchreport",
 }
@@ -298,6 +302,7 @@ def patch_and_fix(
   aconf: AgentConfig,
   harness: Harness,
   stats: RunStats,
+  interactive: bool = False,
 ) -> Optional[str]:
   fixenv = harness.fixenv
   console.print(
@@ -306,7 +311,7 @@ def patch_and_fix(
 
   # Reset the LLVM repo to the base commit
   harness.git("checkout", ".")
-  agent = _create_repair_agent(aconf, harness)
+  agent = _create_repair_agent(aconf, harness, interactive=interactive)
 
   # Fix: There're chances that the model proposes incorrect edit points
   formatted_editpoints = []
@@ -532,6 +537,8 @@ def run_mini_agent(
   harness: Harness,
   # Statistics
   stats: RunStats,
+  # Interactive mode
+  interactive: bool = False,
 ) -> Optional[str]:
   #####################################################
   # The agent runs by:
@@ -541,7 +548,7 @@ def run_mini_agent(
 
   # Reason about the root cause and propose potential edit points
   console.print("Analyzing the issue to gather required information ...")
-  reason_agent = _create_reason_agent(aconf, harness)
+  reason_agent = _create_reason_agent(aconf, harness, interactive=interactive)
   reason_agent.append_user_message(
     PROMPT_REASON.format(
       pass_name=opt_pass,
@@ -613,6 +620,7 @@ def run_mini_agent(
     aconf=aconf,
     harness=harness,
     stats=stats,
+    interactive=interactive,
   )
 
 
@@ -746,23 +754,35 @@ def _get_enabled_tools(
   return tools
 
 
-def _create_reason_agent(agent_config: AgentConfig, harness: Harness) -> AgentBase:
+def _create_reason_agent(
+  agent_config: AgentConfig, harness: Harness, *, interactive: bool = False
+) -> AgentBase:
   """Create a fresh agent with reason-stage tools and skills."""
   tools = _get_enabled_tools(harness, ENABLED_REASON_TOOLS)
   tools.append(
     (SubmitAnalysisTool(harness.acl, MIN_EDITPOINT_LINES), MAX_TCS_LIGHTWEIGHT_TOOLS)
   )
+  if interactive:
+    from harness.tools.askq import AskQuestionTool
+
+    tools.append((AskQuestionTool(), MAX_TCS_LIGHTWEIGHT_TOOLS))
   return agent_config.create_agent(
     tools=tools,
     skills=_get_enabled_skills(harness, ENABLED_REASON_SKILLS),
   )
 
 
-def _create_repair_agent(agent_config: AgentConfig, harness: Harness) -> AgentBase:
+def _create_repair_agent(
+  agent_config: AgentConfig, harness: Harness, *, interactive: bool = False
+) -> AgentBase:
   """Create a fresh agent with repair-stage tools and skills."""
   tools = _get_enabled_tools(harness, ENABLED_REPAIR_TOOLS)
   tools.append((SubmitPatchReportTool(), MAX_TCS_LIGHTWEIGHT_TOOLS))
   tools.append((TodoTool(), MAX_TCS_LIGHTWEIGHT_TOOLS))
+  if interactive:
+    from harness.tools.askq import AskQuestionTool
+
+    tools.append((AskQuestionTool(), MAX_TCS_LIGHTWEIGHT_TOOLS))
   agent = agent_config.create_agent(
     tools=tools,
     skills=_get_enabled_skills(harness, ENABLED_REPAIR_SKILLS),
@@ -777,6 +797,7 @@ def autofix(
   harness: Harness,
   aconf: AgentConfig,
   stats: RunStats,
+  interactive: bool = False,
 ):
   # We use a debugger to help the agent understand the context
   debugger, backtrace = prepare_debugger(rep, harness=harness)
@@ -799,6 +820,7 @@ def autofix(
     aconf=aconf,
     harness=harness,
     stats=stats,
+    interactive=interactive,
   )
 
 
@@ -840,6 +862,12 @@ def parse_args():
     action="store_true",
     default=False,
     help="Use all Transforms and Analysis tests for testing patches (default: False).",
+  )
+  parser.add_argument(
+    "--interactive",
+    action="store_true",
+    default=False,
+    help="Enable the ask tool so the agent can ask the user questions (default: False).",
   )
   return parser.parse_args()
 
@@ -921,6 +949,7 @@ def main():
         harness=h,
         aconf=aconf,
         stats=stats,
+        interactive=args.interactive,
       )
       if not stats.patch:
         raise NoAvailablePatchFound("All efforts tried yet no available patches found.")
