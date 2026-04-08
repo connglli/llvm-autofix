@@ -6,7 +6,7 @@ from typing import TYPE_CHECKING, List, Optional
 
 import yaml
 
-from harness.lms.tool import FuncToolSpec, StatelessFuncToolBase
+from harness.lms.tool import FuncToolCallException, FuncToolSpec, StatelessFuncToolBase
 
 if TYPE_CHECKING:
   from harness.lms.generic import GenericAgent
@@ -73,10 +73,24 @@ class SkillTool(StatelessFuncToolBase):
     )
 
   def _call(self, **kwargs) -> str:
-    # Render the prompt template with the provided arguments
+    missing_required = [
+      p.name
+      for p in self.skill.parameters
+      if p.req and kwargs.get(p.name, None) is None
+    ]
+    if missing_required:
+      raise FuncToolCallException(
+        f"Missing required parameter(s) for skill '{self.skill.name}': "
+        f"{', '.join(missing_required)}"
+      )
+
     prompt = self.skill.instructions
-    for key, value in kwargs.items():
-      prompt = prompt.replace("{{ " + key + " }}", str(value))
+    for p in self.skill.parameters:
+      value = kwargs.get(p.name)
+      if value is not None:
+        prompt = prompt.replace("{{ " + p.name + " }}", str(value))
+      elif not p.req:
+        prompt = prompt.replace("{{ " + p.name + " }}", "(not provided)")
 
     # Inject script paths (agent can run them via bash tool)
     if self.skill.scripts and self.inject_materials:
