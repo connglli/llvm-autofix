@@ -210,9 +210,10 @@ most urgent concerns?>
 ...
 
 ## Verdict
-- APPROVE — patch looks correct and safe to land (no issues found).
+- APPROVE — patch is correct and safe to land (NO issues found,  none of
+  minor issues, major issues, nor critical issues).
 - REVISE — patch is mostly correct but requires targeted fixes for all
-  the found issues above before landing.
+  the found minor or major issues above before landing.
 - REJECT — patch has CRITICAL issues that invalidate the fix; a different
   approach is needed.
 ```
