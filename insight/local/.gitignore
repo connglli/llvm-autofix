@@ -1,0 +1,3 @@
+# Local insights are per-user and not committed.
+*
+!.gitignore

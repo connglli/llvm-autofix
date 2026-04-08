@@ -541,6 +541,7 @@ class Harness:
     # -- Always available (source-tree tools) --
     from harness.tools.edit import EditTool
     from harness.tools.findn import FindNTool
+    from harness.tools.insight import InsightTool
     from harness.tools.listn import ListNTool
     from harness.tools.readn import ReadNTool
     from harness.tools.ripgrepn import RipgrepNTool
@@ -552,6 +553,10 @@ class Harness:
     tools.append(RipgrepNTool(self.acl))
     tools.append(EditTool(self.acl))
     tools.append(WriteTool(self.acl))
+
+    # -- Insight tool (persistent cross-run knowledge) --
+    insight_dir = Path(harness.require_home_dir()) / "insight"
+    tools.append(InsightTool(insight_dir))
 
     # Bash is always available but not scoped by ACL at the file level.
     from harness.tools.bash import BashTool

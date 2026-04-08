@@ -47,10 +47,19 @@ prompts:
 
     To use debugger, call the tool `debug` or `eval`. Call `eval` to evaluate expressions in the context of the paused frame. Call `debug` to execute debugger commands. Note, you should call `eval` as long as it suffices, as it provides a more controlled interface.
 
+    #### Prior Insights ####
+
+    When diving in, use `insight` with action `load` to retrieve any existing knowledge about this pass and common pitfalls:
+    - Load scope `shared/pass/{pass_name_lower}` for pass-specific insights.
+    - Load scope `task/autofix` for general autofix strategies.
+    Use `insight` with action `keyword_search` for quick lookups, or call the `llvm-insight-search` skill for broader natural language questions when you encounter an unfamiliar pattern or get stuck.
+
     ## Instructions for Analysis ##
 
     Please help me determine the root cause of the issue based on the information provided above.
     You may use the logs supplied, and you may request or infer any additional context you find necessary using the available tools.
+
+    If you discover a surprising pattern, a non-obvious pitfall, or a debugging heuristic that would help future investigations of this pass, use `insight` with action `record` to save it. Only record insights that are *generalizable* (not specific to this exact bug) and *surprising* (not obvious from reading the code). Use scope `local/pass/{pass_name_lower}` for pass-specific insights or `local/middle-end/<topic>` for broader patterns. (Local insights are curated and promoted to shared scopes after the run.)
 
     Once you identify the issue and the corresponding fix, use the `submit_analysis` tool to specify the *edit point(s)* along with detailed reasoning. Follow this structure:
 
@@ -99,7 +108,7 @@ prompts:
 
     You should create a clean, minimal patch that properly addresses the root cause while maintaining LLVM's code quality standards. Follow these steps:
 
-    1. **Analyze**: Analyze the provided information to fully understand the bug's cause and effect. You may use provided tools to explore the codebase for more context. For complex bugs that involve multiple files or components, consider using the `todo` tool to plan your steps and the `subagent` tool to delegate focused investigation tasks (e.g., reading and summarizing a subsystem) without cluttering your main context.
+    1. **Analyze**: Analyze the provided information to fully understand the bug's cause and effect. You may use provided tools to explore the codebase for more context. For complex bugs that involve multiple files or components, consider using the `todo` tool to plan your steps and the `subagent` tool to delegate focused investigation tasks (e.g., reading and summarizing a subsystem) without cluttering your main context. Use `insight` (action `keyword_search`) or the `llvm-insight-search` skill to check for relevant prior knowledge about this pass or pattern.
     2. **Propose a Fix**: Outline your proposed solution. Explain your reasoning and the specific changes you intend to make.
     3. **Implement**: Use the `edit` tool to apply your proposed changes to the code.
     4. **Verify**: Use the `test` tool to confirm that your patch:
@@ -113,4 +122,5 @@ prompts:
          + If the review returns **REVISE**, address all findings, then `test` again and call `llvm-patchreview` again with the previous patch and review report.
          + If the review returns **REJECT**, rethink your approach and start over with a different fix strategy.
          + If the review returns **APPROVE**, proceed to **Submit**.
-    7. **Submit**: Call `submit_patchreport` with a concise report explaining the original bug's root cause and how the patch fixes it.
+    7. **Record Insights**: If the fix revealed a non-obvious pattern or pitfall, use `insight` (action `record`) to save it for future runs. Record only generalizable knowledge, not specifics of this bug. Use `local/` scopes (e.g., `local/pass/{pass_name}`) — insights are curated and promoted to shared scopes after the run.
+    8. **Submit**: Call `submit_patchreport` with a concise report explaining the original bug's root cause and how the patch fixes it.

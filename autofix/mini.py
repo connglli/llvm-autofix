@@ -66,6 +66,8 @@ ENABLED_REASON_TOOLS = {
   # Debugging tools
   "debug",
   "eval",
+  # Knowledge tools
+  "insight",
   # Interaction tools
   "ask",  # Enabled when --interactive
   # Report tool to finish the analysis
@@ -89,6 +91,8 @@ ENABLED_REPAIR_TOOLS = {
   "todo",
   # Subagent tools
   "subagent",
+  # Knowledge tools
+  "insight",
   # Test tools
   "reset",
   "test",
@@ -102,13 +106,19 @@ ENABLED_REPAIR_TOOLS = {
   # Report tool to submit a patch report
   "submit_patchreport",
 }
-ALL_ENABLED_TOOLS = ENABLED_REASON_TOOLS | ENABLED_REPAIR_TOOLS
+ENABLED_CURATE_INSIGHT_TOOLS = {"read", "ripgrep", "insight"}
+ALL_ENABLED_TOOLS = (
+  ENABLED_REASON_TOOLS | ENABLED_REPAIR_TOOLS | ENABLED_CURATE_INSIGHT_TOOLS
+)
 HEAVYWEIGHT_TOOLS = {"test", "subagent"}
 LIGHTWEIGHT_TOOLS = ALL_ENABLED_TOOLS - HEAVYWEIGHT_TOOLS
 # Enabled skills per stage and their categories
-ENABLED_REASON_SKILLS: set[str] = set()
-ENABLED_REPAIR_SKILLS = {"llvm-patchreview"}
-ALL_ENABLED_SKILLS = ENABLED_REASON_SKILLS | ENABLED_REPAIR_SKILLS
+ENABLED_REASON_SKILLS = {"llvm-insight-search"}
+ENABLED_REPAIR_SKILLS = {"llvm-patchreview", "llvm-insight-search"}
+ENABLED_CURATE_INSIGHT_SKILLS = {"llvm-insight-reflect"}
+ALL_ENABLED_SKILLS = (
+  ENABLED_REASON_SKILLS | ENABLED_REPAIR_SKILLS | ENABLED_CURATE_INSIGHT_SKILLS
+)
 HAS_REVIEW_SKILL = "llvm-patchreview" in ENABLED_REPAIR_SKILLS
 
 # - ================================================
@@ -197,6 +207,7 @@ class RunStats:
   chat_rounds: int = 0
   total_time_sec: float = 0.0
   # Fix stats
+  opt_pass: str = "<not-provided>"
   trans_point: Tuple[str, str] = ("<not-provided>", "<not-provided>")
   editpoints: List[Tuple[str, int, int]] = field(
     default_factory=lambda *_, **__: [("<not-provided>", -1, -1)]
@@ -343,6 +354,7 @@ def patch_and_fix(
       issue_symptom=rep.symptom,
       reason_info=reason_info,
       editpoints="\n".join(formatted_editpoints) or "<not-found>",
+      pass_name=stats.opt_pass.lower().replace(" ", "-"),
     )
   )
 
@@ -552,6 +564,7 @@ def run_mini_agent(
   reason_agent.append_user_message(
     PROMPT_REASON.format(
       pass_name=opt_pass,
+      pass_name_lower=opt_pass.lower().replace(" ", "-"),
       reprod_code=rep.file_path.read_text(),
       issue_symptom=rep.symptom,
       opt_cmd=opt_cmd,
@@ -791,6 +804,65 @@ def _create_repair_agent(
   return agent
 
 
+def _create_curate_insight_agent(
+  agent_config: AgentConfig, harness: Harness
+) -> AgentBase:
+  """Create a fresh agent with curation-stage tools and skills."""
+  tools = _get_enabled_tools(harness, ENABLED_CURATE_INSIGHT_TOOLS)
+  return agent_config.create_agent(
+    tools=tools,
+    skills=_get_enabled_skills(harness, ENABLED_CURATE_INSIGHT_SKILLS),
+  )
+
+
+def curate_new_insights(
+  *,
+  aconf: AgentConfig,
+  harness: Harness,
+  pass_name: str,
+  reproducer: str,
+  patch: Optional[str],
+  patch_report: Optional[str],
+  run_outcome: str,
+):
+  try:
+    harness.get_skill("llvm-insight-reflect")
+  except KeyError:
+    console.print(
+      "WARNING: Skill `llvm-insight-reflect` not found, skip curating new insight.",
+      color="yellow",
+    )
+    return  # Skill not installed
+
+  agent = _create_curate_insight_agent(aconf, harness)
+  summary = patch_report or "(no patch report available)"
+  agent.append_user_message(
+    f"Run the `llvm-insight-reflect` skill with these arguments:\n"
+    f"- run_outcome: {run_outcome}\n"
+    f"- pass_name: {pass_name}\n"
+    f"- reproducer: {reproducer}\n"
+    f"- patch: {patch or '(no patch)'}\n"
+    f"- summary: {summary}\n"
+  )
+
+  def _response_cb(_: str) -> Tuple[bool, str]:
+    return True, "Please call the `llvm-insight-reflect` skill."
+
+  def _tool_cb(name: str, _: str, res: str) -> Tuple[bool, str]:
+    if name == "llvm-insight-reflect":
+      return False, res
+    return True, res
+
+  console.print("Running insight curation ...")
+  try:
+    result = agent.run(
+      AgentHooks(post_response=_response_cb, post_tool_call=_tool_cb),
+    )
+    console.print(f"Curation complete: {result[:200] if result else '(no output)'}")
+  except Exception as e:
+    console.print(f"WARNING: Curation failed (non-fatal): {e}", color="yellow")
+
+
 def autofix(
   rep: Reproducer,
   *,
@@ -808,6 +880,7 @@ def autofix(
   opt_pass, opt_cmd, opt_log = run_opt(
     rep, harness=harness, backtrace=backtrace.clone()
   )
+  stats.opt_pass = opt_pass
 
   # Run the agent with all required information and tools
   return run_mini_agent(
@@ -962,6 +1035,16 @@ def main():
           console.printb(title="Post-validation", message=errmsg)
           raise NoAvailablePatchFound("Post validation failed")
         console.print("Passed")
+      # Run insight curation after successful fix
+      curate_new_insights(
+        aconf=aconf,
+        harness=h,
+        pass_name=stats.opt_pass.lower().replace(" ", "-"),
+        reproducer=rep.source,
+        patch=stats.patch,
+        patch_report=stats.patch_report,
+        run_outcome="success",
+      )
     except Exception as e:
       import traceback
 
