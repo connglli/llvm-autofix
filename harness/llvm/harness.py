@@ -592,8 +592,8 @@ class Harness:
 
     * Always (llvm_dir): read, list, find, ripgrep, edit, write, bash
     * build_dir present: optimize_ir, compile_ir, interpret_ir, verify_ir
-    * fixenv present (bench issue): test, reset, preview, langref
-    * debugger attached: code, docs, debug, eval
+    * fixenv present (bench issue): llvm_build, llvm_test, llvm_reset, llvm_preview_patch
+    * debugger attached: llvm_code, llvm_docs, llvm_debug, llvm_eval_expr, llvm_langref
     """
     tools: list[FuncToolBase] = []
 
@@ -644,10 +644,13 @@ class Harness:
 
     # -- Env-dependent tools (bench issue) --
     if self.fixenv is not None:
+      from harness.tools.llvm_build import BuildTool
       from harness.tools.llvm_preview import PreviewTool
       from harness.tools.llvm_reset import ResetTool
       from harness.tools.llvm_test import TestTool
 
+      # TODO: Decouple these tools from fixenv
+      tools.append(BuildTool(self.fixenv))
       tools.append(TestTool(self.fixenv))
       tools.append(ResetTool(self.acl, self.fixenv))
       tools.append(PreviewTool(self.fixenv))
@@ -660,6 +663,7 @@ class Harness:
       from harness.tools.llvm_eval import EvalTool
       from harness.tools.llvm_langref import LangRefTool
 
+      # TODO: Decouple these tools from debugger
       tools.append(LangRefTool(self.llvmcode))
       tools.append(CodeTool(self.llvmcode, self._debugger))
       tools.append(DocsTool(self.llvmcode, self._debugger))

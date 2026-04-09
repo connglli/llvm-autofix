@@ -93,7 +93,8 @@ ENABLED_REPAIR_TOOLS = {
   "subagent",
   # Knowledge tools
   "insight",
-  # Test tools
+  # Build & test tools
+  "llvm_build",
   "llvm_reset",
   "llvm_test",
   "llvm_preview_patch",
