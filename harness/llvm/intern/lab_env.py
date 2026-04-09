@@ -1,12 +1,9 @@
-import datetime
 import json
 import os
 import subprocess
 import tempfile
 import time
-from typing import Optional, Union
-
-import dateparser
+from typing import Optional
 
 import harness.llvm.intern.llvm as llvm_ops
 
@@ -29,7 +26,6 @@ class FixEnv:
   def __init__(
     self,
     issue_id,
-    base_model_knowledge_cutoff: str,
     *,
     max_build_jobs=None,
     max_test_jobs=None,
@@ -39,14 +35,11 @@ class FixEnv:
     with open(os.path.join(llvm_ops.dataset_dir, f"{issue_id}.json")) as f:
       self.data = json.load(f)
     self.base_commit = self.data["base_commit"]
-    self.knowledge_cutoff = dateparser.parse(self.data["knowledge_cutoff"])
     self.bug_type = self.data["bug_type"]
     self.test_commit = self.data.get("test_commit", self.data["hints"]["fix_commit"])
     self.test_commit_checkout_changed_files_only = self.data.get(
       "test_commit_checkout_changed_files_only", False
     )
-    self.used_knowledge = dict()
-    self.use_knowledge("base_model", base_model_knowledge_cutoff)
     self.interaction_time_compensation = 0.0
     self.interaction_time_compensation_enter = 0
     self.build_count = 0
@@ -66,14 +59,6 @@ class FixEnv:
     self.additional_cmake_args = additional_cmake_args
     self.use_entire_regression_test_suite = use_entire_regression_test_suite
     self.start_time = time.time()
-
-  def use_knowledge(self, url: str, date: Union[str, datetime.datetime]):
-    if isinstance(date, str):
-      date = dateparser.parse(date)
-    if date <= self.knowledge_cutoff:
-      self.used_knowledge[url] = min(self.used_knowledge.get(url, date), date)
-    else:
-      raise ValueError("Knowledge is newer than the cutoff date")
 
   def reset(self, *, files: list[str] | None = None):
     with TimeCompensationGuard(self):
@@ -101,12 +86,8 @@ class FixEnv:
     wall_time = time.time() - self.start_time - self.interaction_time_compensation
     self.verify_head()
     patch = self.dump_patch()
-    used_knowledge = []
-    for url, t in self.used_knowledge.items():
-      used_knowledge.append((url, t.strftime("%Y-%m-%d%z")))
     return {
       "wall_time": wall_time,
-      "knowledge": used_knowledge,
       "build_count": self.build_count,
       "build_failure_count": self.build_failure_count,
       "fast_check_count": self.fast_check_count,
@@ -280,44 +261,33 @@ class FixEnv:
     return self.data["patch"]
 
   def get_hint_fix_commit(self):
-    self.use_knowledge("hint:fix_commit", self.knowledge_cutoff)
     return self.data["hints"].get("fix_commit")
 
   def get_hint_components(self):
-    self.use_knowledge("hint:components", self.knowledge_cutoff)
     return self.data["hints"].get("components")
 
   def get_hint_files(self):
-    self.use_knowledge("hint:files", self.knowledge_cutoff)
     lineno = self.data["hints"].get("bug_location_lineno")
     if lineno is None:
       return None
     return sorted(lineno.keys())
 
   def get_hint_bug_functions(self):
-    self.use_knowledge("hint:bug_functions", self.knowledge_cutoff)
     return self.data["hints"].get("bug_location_funcname")
 
   def get_hint_line_level_bug_locations(self):
-    self.use_knowledge("hint:line_level_bug_locations", self.knowledge_cutoff)
     return self.data["hints"].get("bug_location_lineno")
 
   def get_hint_issue(self):
-    self.use_knowledge("hint:issue", self.knowledge_cutoff)
     return self.data.get("issue")
 
   def get_langref_desc(self, keywords):
-    self.use_knowledge("llvm/docs/LangRef.rst", self.knowledge_cutoff)
     from harness.llvm.intern.llvm_code import LlvmCode
 
     return LlvmCode().parse_langref_desc(keywords)
 
-  # NOTE: It is not a hint.
   def is_single_func_fix(self):
-    self.use_knowledge("is_single_func_fix", self.knowledge_cutoff)
     return self.data.get("properties").get("is_single_func_fix")
 
-  # NOTE: It is not a hint.
   def is_single_file_fix(self):
-    self.use_knowledge("is_single_file_fix", self.knowledge_cutoff)
     return self.data.get("properties").get("is_single_file_fix")

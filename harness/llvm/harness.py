@@ -268,7 +268,6 @@ class Harness:
     max_build_jobs: int | None = None,
     max_test_jobs: int | None = None,
     aggressive_testing: bool = False,
-    model_knowledge_cutoff: str = "2023-12-31Z",
     acl_preset: AclPreset | None = None,
     extra_editable: list[str] | None = None,
     extra_readable: list[str] | None = None,
@@ -280,7 +279,6 @@ class Harness:
     extras = (extra_editable or [], extra_readable or [], extra_ignored or [])
     env = FixEnv(
       issue_id,
-      base_model_knowledge_cutoff=model_knowledge_cutoff,
       additional_cmake_args=cmake_args or [],
       max_build_jobs=max_build_jobs or os.environ.get("LLVM_HARNESS_MAX_BUILD_JOBS"),
       max_test_jobs=max_test_jobs,
