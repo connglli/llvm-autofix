@@ -197,9 +197,7 @@ class Harness:
   def llvmcode(self) -> LlvmCode:
     """Lazily-created :class:`LlvmCode` for LLVM source analysis."""
     if self._llvmcode is None:
-      from harness.llvm.intern.llvm_code import LlvmCode as _LlvmCode
-
-      self._llvmcode = _LlvmCode()
+      self._llvmcode = LlvmCode()
     return self._llvmcode
 
   # -------------------------------------------------------------------

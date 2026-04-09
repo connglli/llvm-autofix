@@ -21,7 +21,7 @@ prompts:
 
     #### Opt Information ####
 
-    To gather more insight, I ran `opt` to inspect both the transformations and the analysis results. Below are the command and the resulting log:
+    To gather more insight, I ran LLVM's opt--the middle-end optimizer--to inspect both the transformations and the analysis results. Below are the command and the resulting log:
 
     ```bash
     $ {opt_cmd}
@@ -45,7 +45,7 @@ prompts:
     I also attached a debugger (it's gdb) so you can inspect the program state at the transformation point.
     For convenience, I started the debugger and paused execution at that point.
 
-    To use debugger, call the tool `debug` or `eval`. Call `eval` to evaluate expressions in the context of the paused frame. Call `debug` to execute debugger commands. Note, you should call `eval` as long as it suffices, as it provides a more controlled interface.
+    To use debugger, call the tool `llvm_debug` or `llvm_eval_expr`. Call `llvm_eval_expr` to evaluate expressions in the context of the paused frame. Call `llvm_debug` to execute debugger commands. Note, you should call `llvm_eval_expr` as long as it suffices, as it provides a more controlled interface.
 
     #### Prior Insights ####
 
@@ -111,16 +111,16 @@ prompts:
     1. **Analyze**: Analyze the provided information to fully understand the bug's cause and effect. You may use provided tools to explore the codebase for more context. For complex bugs that involve multiple files or components, consider using the `todo` tool to plan your steps and the `subagent` tool to delegate focused investigation tasks (e.g., reading and summarizing a subsystem) without cluttering your main context. Use `insight` (action `keyword_search`) or the `llvm-insight-search` skill to check for relevant prior knowledge about this pass or pattern.
     2. **Propose a Fix**: Outline your proposed solution. Explain your reasoning and the specific changes you intend to make.
     3. **Implement**: Use the `edit` tool to apply your proposed changes to the code.
-    4. **Verify**: Use the `test` tool to confirm that your patch:
+    4. **Verify**: Use the `llvm_test` tool to confirm that your patch:
          + Is syntactically correct and does not introduce new syntax errors.
          + Is valid and does not modify any assertions in the code.
          + Fixes the original issue shown in the reproducer.
          + Does not introduce any new regressions.
          + Does not turn off the problematic transformation or analysis entirely unless absolutely necessary.
     5. **Iterate**: If verification fails, analyze the failure, revise your proposal, and repeat the implementation and verification steps until all tests pass.
-    6. **Review**: Once the `test` tool reports success, call the `llvm-patchreview` skill to review your patch for potential bugs not covered by the regression tests. Pass the previously reviewed patch (if any) and the previous review report as the argument so the reviewer can check for regressions from earlier attempts. Ask the reviewer to use `preview` to see the current patch under review.
-         + If the review returns **REVISE**, address all findings, then `test` again and call `llvm-patchreview` again with the previous patch and review report.
+    6. **Review**: Once the `llvm_test` tool reports success, call the `llvm-patchreview` skill to review your patch for potential bugs not covered by the regression tests. Pass the previously reviewed patch (if any) and the previous review report as the argument so the reviewer can check for regressions from earlier attempts. Ask the reviewer to use `llvm_preview_patch` to see the current patch under review.
+         + If the review returns **REVISE**, address all findings, then `llvm_test` again and call `llvm-patchreview` again with the previous patch and review report.
          + If the review returns **REJECT**, rethink your approach and start over with a different fix strategy.
-         + If the review returns **APPROVE**, proceed to **Submit**.
+         + If the review returns **APPROVE**, proceed to **Record Insights**.
     7. **Record Insights**: If the fix revealed a non-obvious pattern or pitfall, use `insight` (action `record`) to save it for future runs. Record only generalizable knowledge, not specifics of this bug. Use `local/` scopes (e.g., `local/pass/{pass_name}`) — insights are curated and promoted to shared scopes after the run.
     8. **Submit**: Call `submit_patchreport` with a concise report explaining the original bug's root cause and how the patch fixes it.

@@ -194,8 +194,8 @@ components = h.llvmcode.infer_related_components(["llvm/lib/Transforms/Scalar/GV
 | Always | `read`, `list`, `find`, `ripgrep`, `edit`, `write`, `bash` |
 | build_dir | `optimize_ir`, `compile_ir`, `interpret_ir` |
 | alive-tv | `verify_ir` |
-| fixenv | `test`, `reset`, `preview`, `langref` |
-| debugger | `code`, `docs`, `debug`, `eval` |
+| fixenv | `llvm_test`, `llvm_reset`, `llvm_preview_patch` |
+| debugger | `llvm_code`, `llvm_docs`, `llvm_debug`, `llvm_eval_expr`, `llvm_langref` |
 
 Some tools are **client-managed** — they are defined in `harness/tools/` but not created by the harness because they require agent references or encode workflow-specific logic. These include `subagent` (sub-agent spawning), `todo` (stateful tracking), and `askq` (user interaction). See `harness/tools/README.md` for the full list. Clients register them directly on the agent after creation.
 
@@ -204,7 +204,7 @@ Some tools are **client-managed** — they are defined in `harness/tools/` but n
 tools = h.make_tools()
 
 # Get a single tool by name
-tester = h.make_tool("test")
+tester = h.make_tool("llvm_test")
 
 # Register harness-managed tools into an agent with budgets
 for tool in h.make_tools():

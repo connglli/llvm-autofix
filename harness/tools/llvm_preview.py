@@ -8,7 +8,7 @@ class PreviewTool(StatelessFuncToolBase):
 
   def spec(self) -> FuncToolSpec:
     return FuncToolSpec(
-      "preview",
+      "llvm_preview_patch",
       "Show the current LLVM diff of all changes you have made so far. "
       "Use this to review your patch before testing, or to check which files you have modified.",
       [],

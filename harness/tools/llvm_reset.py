@@ -10,7 +10,7 @@ class ResetTool(StatelessFuncToolBase):
 
   def spec(self) -> FuncToolSpec:
     return FuncToolSpec(
-      "reset",
+      "llvm_reset",
       "Restore an LLVM file to its original state, discarding all local edits. "
       "Use this to undo a broken change before trying a different approach. "
       "Note that this will lead to stale LLVM builds, so `llvm_build` should be "

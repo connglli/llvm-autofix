@@ -8,7 +8,7 @@ class DebugTool(StatelessFuncToolBase):
 
   def spec(self) -> FuncToolSpec:
     return FuncToolSpec(
-      "debug",
+      "llvm_debug",
       "Execute a GDB command in the attached debugger session and return the result. "
       "The debugger is paused at the crash site or transformation breakpoint of LLVM. "
       "Use this to inspect the call stack, print variables, navigate frames, or set watchpoints. "

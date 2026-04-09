@@ -74,7 +74,7 @@ Avoid mentioning implementation details (binary names, internal paths) unless th
 ### Tool names (exposed to the agent)
 - Use `snake_case`.
 - LLVM IR tools append `_ir` to indicate the input/output domain: `optimize_ir`, `verify_ir`, `compile_ir`, `interpret_ir`.
-- Generic-sounding LLVM tools (debugger, test runner, etc.) do **not** get an `llvm_` prefix in the tool name — the description provides that context.
+- LLVM-specific tools use an `llvm_` prefix in the tool name: `llvm_test`, `llvm_debug`, `llvm_code`, etc.
 
 ### Class names
 - `PascalCase` with a `Tool` suffix, e.g. `OptimizeIrTool`, `DebugTool`.
@@ -125,8 +125,8 @@ class MyLlvmTool(LlvmBuildDirMixin, StatelessFuncToolBase):
 | Always | `read`, `list`, `find`, `ripgrep`, `edit`, `write`, `bash` |
 | build_dir | `optimize_ir`, `compile_ir`, `interpret_ir` |
 | alive-tv | `verify_ir` |
-| fixenv | `test`, `reset`, `preview`, `langref` |
-| debugger | `code`, `docs`, `debug`, `eval` |
+| fixenv | `llvm_test`, `llvm_reset`, `llvm_preview_patch` |
+| debugger | `llvm_code`, `llvm_docs`, `llvm_debug`, `llvm_eval_expr`, `llvm_langref` |
 
 **Client-managed** tools are defined and registered by the client (e.g. `autofix/mini.py`), not by the harness. They typically encode workflow-specific logic that doesn't belong in the shared harness.
 

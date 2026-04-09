@@ -25,7 +25,7 @@ class TestTool(StatelessFuncToolBase):
 
   def spec(self) -> FuncToolSpec:
     return FuncToolSpec(
-      "test",
+      "llvm_test",
       "Build LLVM with your changes, verify the original bug is fixed, and run regression tests. "
       "Use this when you believe your patch is ready — it rebuilds and runs the full test suite, so it is expensive. "
       "Check the output carefully: a failure means the patch is incorrect or introduces regressions.",

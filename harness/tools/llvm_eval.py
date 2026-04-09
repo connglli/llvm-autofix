@@ -8,10 +8,10 @@ class EvalTool(StatelessFuncToolBase):
 
   def spec(self) -> FuncToolSpec:
     return FuncToolSpec(
-      "eval",
+      "llvm_eval_expr",
       "Evaluate a C++ expression in the current debugger frame and return its value. "
       "Use this to inspect LLVM IR objects, instruction operands, or any in-scope variable. "
-      "Make sure you are in the correct stack frame first (use `debug` to navigate).",
+      "Make sure you are in the correct stack frame first (use `llvm_debug` to navigate).",
       [
         FuncToolSpec.Param(
           "expr",

@@ -59,13 +59,13 @@ ENABLED_REASON_TOOLS = {
   "read",
   "find",
   "ripgrep",
-  "code",
+  "llvm_code",
   # Documentation tools
-  "docs",
-  "langref",
+  "llvm_docs",
+  "llvm_langref",
   # Debugging tools
-  "debug",
-  "eval",
+  "llvm_debug",
+  "llvm_eval_expr",
   # Knowledge tools
   "insight",
   # Interaction tools
@@ -79,12 +79,12 @@ ENABLED_REPAIR_TOOLS = {
   "read",
   "find",
   "ripgrep",
-  "code",
+  "llvm_code",
   "bash",
   "write",
   # Documentation tools
-  "docs",
-  "langref",
+  "llvm_docs",
+  "llvm_langref",
   # Edit tools
   "edit",
   # Plan tools
@@ -94,9 +94,9 @@ ENABLED_REPAIR_TOOLS = {
   # Knowledge tools
   "insight",
   # Test tools
-  "reset",
-  "test",
-  "preview",
+  "llvm_reset",
+  "llvm_test",
+  "llvm_preview_patch",
   "interpret_ir",
   "optimize_ir",
   "verify_ir",
@@ -110,7 +110,7 @@ ENABLED_CURATE_INSIGHT_TOOLS = {"read", "ripgrep", "insight"}
 ALL_ENABLED_TOOLS = (
   ENABLED_REASON_TOOLS | ENABLED_REPAIR_TOOLS | ENABLED_CURATE_INSIGHT_TOOLS
 )
-HEAVYWEIGHT_TOOLS = {"test", "subagent"}
+HEAVYWEIGHT_TOOLS = {"llvm_test", "subagent"}
 LIGHTWEIGHT_TOOLS = ALL_ENABLED_TOOLS - HEAVYWEIGHT_TOOLS
 # Enabled skills per stage and their categories
 ENABLED_REASON_SKILLS = {"llvm-insight-search"}
@@ -363,13 +363,13 @@ def patch_and_fix(
   # only submits once the reviewer approves.
 
   def response_callback(_: str) -> Tuple[bool, str]:
-    ensure_tools_available(agent, ["test", "edit"])
+    ensure_tools_available(agent, ["llvm_test", "edit"])
     return True, (
       "Error: You are not calling any tool or your tool call format is incorrect. "
       "You should always continue with tool calling and correct tool call format. "
       "Please continue."
-      " If you are done, call the `test` tool to see if it passes the tests."
-      " If you already called the `test` tool, please check the feedback, adjust the patch, and try again."
+      " If you are done, call the `llvm_test` tool to see if it passes the tests."
+      " If you already called the `llvm_test` tool, please check the feedback, adjust the patch, and try again."
     )
 
   def _latest_test_passed() -> bool:
@@ -384,8 +384,8 @@ def patch_and_fix(
     return verdict == _VERDICT_APPROVE and rev_patch == cur_patch
 
   def tool_call_callback(name: str, _: str, res: str) -> Tuple[bool, str]:
-    ensure_tools_available(agent, ["test", "edit"])
-    if name == "test":
+    ensure_tools_available(agent, ["llvm_test", "edit"])
+    if name == "llvm_test":
       patch = fixenv.dump_patch()
       passed = res == "<success>"
       stats.test_traj.append((patch, passed))
@@ -403,7 +403,8 @@ def patch_and_fix(
           True,
           "Error: cannot submit — "
           "the latest test did not pass or you didn't test. "
-          "Run `test` first.",
+          "If you haven't tested, please call the `llvm_test` tool first. "
+          "If you have tested, please check the feedback, adjust the patch, and try again.",
         )
       if HAS_REVIEW_SKILL and not _latest_review_approved():
         return (
@@ -411,7 +412,8 @@ def patch_and_fix(
           "Error: cannot submit — "
           "the latest review did not approve the patch or "
           "you didn't apply for patch review for the latest patch. "
-          "Call `llvm-patchreview` first.",
+          "If you haven't applied for review, please call the `llvm-patchreview` tool first. "
+          "If you have applied for review, please check the feedback, adjust the patch, and try again.",
         )
       stats.patch_report = res
       return False, fixenv.dump_patch()

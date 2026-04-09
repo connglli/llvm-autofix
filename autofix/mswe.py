@@ -145,7 +145,7 @@ class MyAgent(DefaultAgent):
 
   def setup(self, harness: Harness):
     self.harness = harness
-    self.tester = harness.make_tool("test")
+    self.tester = harness.make_tool("llvm_test")
 
   def _test_submission(self) -> Optional[str]:
     # Save the test trajectory
@@ -165,7 +165,7 @@ class MyAgent(DefaultAgent):
 
   def execute_action(self, action: dict) -> dict:
     if self.test_budget == 0:
-      raise ReachToolBudget("test")
+      raise ReachToolBudget("llvm_test")
     if self.edit_budget == 0:
       raise ReachToolBudget("edit")
     tool = (action["action"] or "").split(" ", maxsplit=1)[0]
