@@ -75,9 +75,13 @@ class FixEnv:
     else:
       raise ValueError("Knowledge is newer than the cutoff date")
 
-  def reset(self):
+  def reset(self, *, files: list[str] | None = None):
     with TimeCompensationGuard(self):
-      llvm_ops.reset(self.base_commit)
+      if files is not None:
+        for f in files:
+          llvm_ops.git_execute(["checkout", self.base_commit, f])
+      else:
+        llvm_ops.reset(self.base_commit)
 
   def verify_head(self):
     head = llvm_ops.git_execute(["rev-parse", "HEAD"]).strip()

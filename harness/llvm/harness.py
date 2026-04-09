@@ -592,7 +592,7 @@ class Harness:
       from harness.tools.llvm_test import TestTool
 
       tools.append(TestTool(self.fixenv))
-      tools.append(ResetTool(self.acl, self.fixenv.base_commit, str(self.llvm_dir)))
+      tools.append(ResetTool(self.acl, self.fixenv))
       tools.append(PreviewTool(self.fixenv))
       tools.append(LangRefTool(self.fixenv))
 
