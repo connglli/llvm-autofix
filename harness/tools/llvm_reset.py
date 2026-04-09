@@ -13,8 +13,11 @@ class ResetTool(StatelessFuncToolBase):
   def spec(self) -> FuncToolSpec:
     return FuncToolSpec(
       "reset",
-      "Restore an LLVM file to its original state at the base commit, discarding all local edits. "
-      "Use this to undo a broken change before trying a different approach.",
+      "Restore an LLVM file to its original state, discarding all local edits. "
+      "Use this to undo a broken change before trying a different approach. "
+      "Note that this will lead to stale LLVM builds, so `llvm_build` should be "
+      "called before calling any other tools that depend on the build. E.g., "
+      "llvm_optimize_ir, llvm_compile_ir, etc.",
       [
         FuncToolSpec.Param(
           "file",
@@ -40,4 +43,4 @@ class ResetTool(StatelessFuncToolBase):
         + "\n"
         + (e.stderr.decode() if e.stderr else ""),
       )
-    return f"Checked out {resolved} from commit {self.base_commit}."
+    return f"Successfully restored {resolved}"
