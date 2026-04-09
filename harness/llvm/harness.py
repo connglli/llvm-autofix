@@ -584,7 +584,6 @@ class Harness:
 
     # -- Env-dependent tools (bench issue) --
     if self.fixenv is not None:
-      from harness.tools.llvm_langref import LangRefTool
       from harness.tools.llvm_preview import PreviewTool
       from harness.tools.llvm_reset import ResetTool
       from harness.tools.llvm_test import TestTool
@@ -592,7 +591,6 @@ class Harness:
       tools.append(TestTool(self.fixenv))
       tools.append(ResetTool(self.acl, self.fixenv))
       tools.append(PreviewTool(self.fixenv))
-      tools.append(LangRefTool(self.fixenv))
 
     # -- Debugger-dependent tools --
     if self._debugger is not None:
@@ -600,7 +598,9 @@ class Harness:
       from harness.tools.llvm_debug import DebugTool
       from harness.tools.llvm_docs import DocsTool
       from harness.tools.llvm_eval import EvalTool
+      from harness.tools.llvm_langref import LangRefTool
 
+      tools.append(LangRefTool(self.llvmcode))
       tools.append(CodeTool(self.llvmcode, self._debugger))
       tools.append(DocsTool(self.llvmcode, self._debugger))
       tools.append(DebugTool(self._debugger))

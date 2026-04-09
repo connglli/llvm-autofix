@@ -281,11 +281,6 @@ class FixEnv:
   def get_hint_issue(self):
     return self.data.get("issue")
 
-  def get_langref_desc(self, keywords):
-    from harness.llvm.intern.llvm_code import LlvmCode
-
-    return LlvmCode().parse_langref_desc(keywords)
-
   def is_single_func_fix(self):
     return self.data.get("properties").get("is_single_func_fix")
 

@@ -1,10 +1,10 @@
-from harness.llvm.intern.lab_env import FixEnv
+from harness.llvm.intern.llvm_code import LlvmCode
 from harness.lms.tool import FuncToolCallException, FuncToolSpec, StatelessFuncToolBase
 
 
 class LangRefTool(StatelessFuncToolBase):
-  def __init__(self, env: FixEnv):
-    self.env = env
+  def __init__(self, llvm: LlvmCode):
+    self.llvm = llvm
 
   def spec(self) -> FuncToolSpec:
     return FuncToolSpec(
@@ -26,7 +26,7 @@ class LangRefTool(StatelessFuncToolBase):
     )
 
   def _call(self, *, inst: str, **kwargs) -> str:
-    res = self.env.get_langref_desc([inst])
+    res = self.llvm.parse_langref_desc([inst])
     if inst in res:
       return res[inst]
     raise FuncToolCallException(
