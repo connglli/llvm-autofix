@@ -139,8 +139,6 @@ def alive2_check(src: str, tgt: str, additional_args: str, repro: bool):
 
         args = [
           llvm_alive_tv,
-          "--disable-undef-input",
-          "--smt-to=60000",
           src_file.name,
           tgt_file.name,
         ]
@@ -221,7 +219,10 @@ def verify_dispatch(
       output = out.stdout
       new_input = copy_triple(input, output)
       new_input = copy_datalayout(new_input, output)
-      res, log = alive2_check(new_input, output.decode(), additional_args, repro)
+      alive2_args = "--disable-undef-input --smt-to=60000"
+      if additional_args:
+        alive2_args += " " + additional_args
+      res, log = alive2_check(new_input, output.decode(), alive2_args, repro)
       if isinstance(log, str):
         log = _decode_output(out.stderr) + "\n" + log
       else:

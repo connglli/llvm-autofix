@@ -214,6 +214,19 @@ class Harness:
     cmd = " ".join([str(opt.absolute())] + args + [str(Path(file).absolute())])
     return cmd, cmdline.getoutput(cmd, check=check, **kwargs).decode()
 
+  def run_alive2(
+    self, src: str, tgt: str, additional_args: str = "", repro: bool = False
+  ) -> tuple[str, str]:
+    """Run alive2 on *src* → *tgt* and return ``(command, output)``."""
+    alive_tv = str(self.alive_tv_path)
+    alive2_args = f"--disable-undef-input --smt-to=60000 {additional_args}".strip()
+    cmd = f"{alive_tv} {alive2_args}"
+    success, log = llvm_ops.alive2_check(src, tgt, alive2_args, repro)
+    if isinstance(log, dict):
+      log = log.get("log", "")
+    prefix = "SUCCESS" if success else "FAILURE"
+    return cmd, f"{prefix}: {log}"
+
   # -------------------------------------------------------------------
   # Debugger
   # -------------------------------------------------------------------
