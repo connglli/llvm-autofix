@@ -1,5 +1,5 @@
+from harness.llvm import FixEnv
 from harness.llvm.access import AccessControl
-from harness.llvm.intern.lab_env import FixEnv
 from harness.lms.tool import FuncToolCallException, FuncToolSpec, StatelessFuncToolBase
 
 

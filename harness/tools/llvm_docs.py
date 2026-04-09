@@ -1,7 +1,7 @@
 import re
 
+from harness.llvm import LlvmCode
 from harness.llvm.debugger import DebuggerBase
-from harness.llvm.intern.llvm_code import LlvmCode
 from harness.lms.tool import FuncToolCallException, FuncToolSpec, StatelessFuncToolBase
 
 

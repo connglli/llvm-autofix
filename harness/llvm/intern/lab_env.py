@@ -1,11 +1,12 @@
-import json
 import os
 import subprocess
 import tempfile
 import time
+from dataclasses import asdict
 from typing import Optional
 
 import harness.llvm.intern.llvm as llvm_ops
+from harness.llvm.issue import IssueCard
 
 
 class TimeCompensationGuard:
@@ -25,21 +26,25 @@ class TimeCompensationGuard:
 class FixEnv:
   def __init__(
     self,
-    issue_id,
+    card: IssueCard,
     *,
     max_build_jobs=None,
     max_test_jobs=None,
     use_entire_regression_test_suite=False,
     additional_cmake_args=[],
+    test_commit_checkout_changed_files_only=False,
+    reference_patch: str | None = None,
   ):
-    with open(os.path.join(llvm_ops.dataset_dir, f"{issue_id}.json")) as f:
-      self.data = json.load(f)
-    self.base_commit = self.data["base_commit"]
-    self.bug_type = self.data["bug_type"]
-    self.test_commit = self.data.get("test_commit", self.data["hints"]["fix_commit"])
-    self.test_commit_checkout_changed_files_only = self.data.get(
-      "test_commit_checkout_changed_files_only", False
+    self.card = card
+    self.base_commit = card.base_commit or (
+      llvm_ops.git_execute(["rev-parse", "HEAD"]).strip()
     )
+    self.bug_type = card.bug_type
+    self.test_commit = card.test_commit or self.base_commit
+    self.test_commit_checkout_changed_files_only = (
+      test_commit_checkout_changed_files_only
+    )
+    self.reference_patch = reference_patch
     self.interaction_time_compensation = 0.0
     self.interaction_time_compensation_enter = 0
     self.build_count = 0
@@ -113,7 +118,9 @@ class FixEnv:
       if not res:
         return (False, reason)
       res, log = llvm_ops.verify_test_group(
-        repro=False, input=self.data["tests"], type=self.bug_type
+        repro=False,
+        input=[asdict(r) for r in self.card.reproducers],
+        type=self.bug_type,
       )
       if not res:
         return (False, log)
@@ -135,7 +142,7 @@ class FixEnv:
         test_commit=self.test_commit,
         dirs=["llvm/test/Transforms", "llvm/test/Analysis"]
         if self.use_entire_regression_test_suite
-        else self.data["lit_test_dir"],
+        else self.card.lit_test_dir,
         max_test_jobs=self.max_build_jobs,
         test_commit_checkout_changed_files_only=self.test_commit_checkout_changed_files_only,
       )
@@ -146,6 +153,8 @@ class FixEnv:
     """
     Run the regression tests and check the output bitcode with llvm-diff.
     """
+    if self.reference_patch is None:
+      raise RuntimeError("No reference patch available for regression diff check.")
     with open("/proc/sys/kernel/randomize_va_space", "r") as f:
       if int(f.read().strip()) != 0:
         print("Warning: ASLR is enabled. Please disable it for deterministic output.")
@@ -160,7 +169,7 @@ class FixEnv:
       patch = self.dump_patch()
 
       self.reset()
-      llvm_ops.apply_patch(self.data["patch"])
+      llvm_ops.apply_patch(self.reference_patch)
       res, reason = self.build()
       if not res:
         self.reset()
@@ -228,7 +237,9 @@ class FixEnv:
       if not res:
         return (False, reason)
       res, log = llvm_ops.verify_test_group(
-        repro=False, input=self.data["tests"], type=self.bug_type
+        repro=False,
+        input=[asdict(r) for r in self.card.reproducers],
+        type=self.bug_type,
       )
       if not res:
         return (False, log)
@@ -239,7 +250,7 @@ class FixEnv:
         test_commit=self.test_commit,
         dirs=["llvm/test/Transforms", "llvm/test/Analysis"]
         if self.use_entire_regression_test_suite
-        else self.data["lit_test_dir"],
+        else self.card.lit_test_dir,
         max_test_jobs=self.max_build_jobs,
         test_commit_checkout_changed_files_only=self.test_commit_checkout_changed_files_only,
       )
@@ -254,35 +265,13 @@ class FixEnv:
   def get_base_commit(self):
     return self.base_commit
 
-  def get_tests(self):
-    return self.data["tests"]
-
   def get_reference_patch(self):
-    return self.data["patch"]
+    return self.reference_patch
 
-  def get_hint_fix_commit(self):
-    return self.data["hints"].get("fix_commit")
+  def get_issue_title(self):
+    issue = self.card.issue
+    return issue["title"] if issue else None
 
-  def get_hint_components(self):
-    return self.data["hints"].get("components")
-
-  def get_hint_files(self):
-    lineno = self.data["hints"].get("bug_location_lineno")
-    if lineno is None:
-      return None
-    return sorted(lineno.keys())
-
-  def get_hint_bug_functions(self):
-    return self.data["hints"].get("bug_location_funcname")
-
-  def get_hint_line_level_bug_locations(self):
-    return self.data["hints"].get("bug_location_lineno")
-
-  def get_hint_issue(self):
-    return self.data.get("issue")
-
-  def is_single_func_fix(self):
-    return self.data.get("properties").get("is_single_func_fix")
-
-  def is_single_file_fix(self):
-    return self.data.get("properties").get("is_single_file_fix")
+  def get_issue_labels(self):
+    issue = self.card.issue
+    return issue.get("labels", []) if issue else []

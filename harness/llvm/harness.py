@@ -5,25 +5,23 @@ import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 from subprocess import CalledProcessError, TimeoutExpired
-from typing import TYPE_CHECKING, Literal
+from typing import Literal
 
 import harness
 from harness.llvm.access import AccessControl
+from harness.llvm.debugger import DebuggerBase
 from harness.llvm.intern import llvm as llvm_ops
+from harness.llvm.intern.lab_env import FixEnv
+from harness.llvm.intern.llvm_code import LlvmCode
+from harness.llvm.issue import IssueCard, Reproducer
+from harness.lms.tool import FuncToolBase
 from harness.utils import cmdline
-
-if TYPE_CHECKING:
-  from harness.llvm.debugger import DebuggerBase
-  from harness.llvm.intern.lab_env import FixEnv
-  from harness.llvm.intern.llvm_code import LlvmCode
-  from harness.lms.tool import FuncToolBase
 
 
 @dataclass
-class Reproducer:
-  """Result of reproducing a bug — either from bench/ or ad-hoc."""
+class ReprodRes:
+  """Result of running a reproducer."""
 
-  issue_id: str
   bug_type: str  # "crash" | "miscompilation" | "hang"
   file_path: Path  # path to written .ll file
   command: list[str]  # resolved opt command tokens
@@ -132,7 +130,8 @@ class Harness:
   Use one of the factory methods to create an instance:
 
   * :meth:`workspace` — bare LLVM workspace (superopt, general dev)
-  * :meth:`from_issue` — bench issue from ``bench/``
+  * :meth:`from_issue_card` — from an :class:`IssueCard`
+  * :meth:`from_issue_id` — bench issue from ``bench/``
   * :meth:`from_reproducer` — ad-hoc bug from a user-provided file
   """
 
@@ -141,13 +140,8 @@ class Harness:
     *,
     acl_preset: AclPreset | None = None,
     acl_extras: tuple[list[str], list[str], list[str]] | None = None,
-    # Bench-issue fields (set by from_issue)
     fixenv: FixEnv | None = None,
     issue_id: str | None = None,
-    # Ad-hoc issue fields (set by from_reproducer)
-    reproducer_file: str | None = None,
-    reproducer_command: str | None = None,
-    reproducer_bug_type: str | None = None,
   ):
     self._acl_preset = acl_preset
     self._acl_extras = acl_extras or ([], [], [])
@@ -156,11 +150,6 @@ class Harness:
     self._issue_id = issue_id
     self._llvmcode: LlvmCode | None = None
     self._debugger: DebuggerBase | None = None
-
-    # Ad-hoc reproducer state
-    self._reproducer_file = reproducer_file
-    self._reproducer_command = reproducer_command
-    self._reproducer_bug_type = reproducer_bug_type
 
   # -------------------------------------------------------------------
   # Paths — delegated to intern/llvm.py (single source of truth)
@@ -200,9 +189,9 @@ class Harness:
     )
 
   @property
-  def alive_tv(self) -> str | None:
-    """Path to the alive-tv binary, or ``None`` if not configured."""
-    return llvm_ops.llvm_alive_tv
+  def alive_tv_path(self) -> Path:
+    """Path to the alive-tv binary."""
+    return Path(llvm_ops.llvm_alive_tv).resolve()
 
   @property
   def llvmcode(self) -> LlvmCode:
@@ -261,7 +250,41 @@ class Harness:
     )
 
   @staticmethod
-  def from_issue(
+  def from_issue_card(
+    card: IssueCard,
+    *,
+    cmake_args: list[str] | None = None,
+    max_build_jobs: int | None = None,
+    max_test_jobs: int | None = None,
+    aggressive_testing: bool = False,
+    test_commit_checkout_changed_files_only: bool = False,
+    reference_patch: str | None = None,
+    issue_id: str | None = None,
+    acl_preset: AclPreset | None = None,
+    extra_editable: list[str] | None = None,
+    extra_readable: list[str] | None = None,
+    extra_ignored: list[str] | None = None,
+  ) -> Harness:
+    """Create a harness from an :class:`IssueCard`."""
+    extras = (extra_editable or [], extra_readable or [], extra_ignored or [])
+    env = FixEnv(
+      card,
+      additional_cmake_args=cmake_args or [],
+      max_build_jobs=max_build_jobs or os.environ.get("LLVM_HARNESS_MAX_BUILD_JOBS"),
+      max_test_jobs=max_test_jobs,
+      use_entire_regression_test_suite=aggressive_testing,
+      test_commit_checkout_changed_files_only=test_commit_checkout_changed_files_only,
+      reference_patch=reference_patch,
+    )
+    return Harness(
+      acl_preset=acl_preset,
+      acl_extras=extras,
+      fixenv=env,
+      issue_id=issue_id,
+    )
+
+  @staticmethod
+  def from_issue_id(
     issue_id: str,
     *,
     cmake_args: list[str] | None = None,
@@ -274,21 +297,34 @@ class Harness:
     extra_ignored: list[str] | None = None,
   ) -> Harness:
     """Create a harness for a bench issue from ``bench/``."""
-    from harness.llvm.intern.lab_env import FixEnv
-
-    extras = (extra_editable or [], extra_readable or [], extra_ignored or [])
-    env = FixEnv(
-      issue_id,
-      additional_cmake_args=cmake_args or [],
-      max_build_jobs=max_build_jobs or os.environ.get("LLVM_HARNESS_MAX_BUILD_JOBS"),
-      max_test_jobs=max_test_jobs,
-      use_entire_regression_test_suite=aggressive_testing,
+    data = llvm_ops.load_benchmark_issue(issue_id)
+    hints = data.get("hints", {})
+    card = IssueCard(
+      bug_type=data["bug_type"],
+      reproducers=[
+        Reproducer(file=t["file"], commands=t["commands"], tests=t["tests"])
+        for t in data["tests"]
+      ],
+      base_commit=data.get("base_commit"),
+      test_commit=data.get("test_commit", hints.get("fix_commit")),
+      lit_test_dir=data.get("lit_test_dir"),
+      issue=data.get("issue"),
     )
-    return Harness(
-      acl_preset=acl_preset,
-      acl_extras=extras,
-      fixenv=env,
+    return Harness.from_issue_card(
+      card,
+      cmake_args=cmake_args,
+      max_build_jobs=max_build_jobs,
+      max_test_jobs=max_test_jobs,
+      aggressive_testing=aggressive_testing,
+      test_commit_checkout_changed_files_only=data.get(
+        "test_commit_checkout_changed_files_only", False
+      ),
+      reference_patch=data.get("patch"),
       issue_id=issue_id,
+      acl_preset=acl_preset,
+      extra_editable=extra_editable,
+      extra_readable=extra_readable,
+      extra_ignored=extra_ignored,
     )
 
   @staticmethod
@@ -297,19 +333,30 @@ class Harness:
     command: str,
     bug_type: str,
     *,
+    cmake_args: list[str] | None = None,
+    max_build_jobs: int | None = None,
+    max_test_jobs: int | None = None,
+    aggressive_testing: bool = False,
     acl_preset: AclPreset | None = None,
     extra_editable: list[str] | None = None,
     extra_readable: list[str] | None = None,
     extra_ignored: list[str] | None = None,
   ) -> Harness:
     """Create a harness for an ad-hoc bug from a user-provided file."""
-    extras = (extra_editable or [], extra_readable or [], extra_ignored or [])
-    return Harness(
+    card = IssueCard(
+      bug_type=bug_type,
+      reproducers=[Reproducer(file=str(file), commands=[command], tests=[])],
+    )
+    return Harness.from_issue_card(
+      card,
+      cmake_args=cmake_args,
+      max_build_jobs=max_build_jobs,
+      max_test_jobs=max_test_jobs,
+      aggressive_testing=aggressive_testing,
       acl_preset=acl_preset,
-      acl_extras=extras,
-      reproducer_file=str(file),
-      reproducer_command=command,
-      reproducer_bug_type=bug_type,
+      extra_editable=extra_editable,
+      extra_readable=extra_readable,
+      extra_ignored=extra_ignored,
     )
 
   # -------------------------------------------------------------------
@@ -369,27 +416,29 @@ class Harness:
     self.fixenv.use_entire_regression_test_suite = True
     try:
       passed, errmsg = self.fixenv.check_midend()
-      if passed:
+      if passed and self.fixenv.get_reference_patch() is not None:
         passed, errmsg = self.fixenv.check_regression_diff()
       return passed, errmsg
     finally:
       self.fixenv.use_entire_regression_test_suite = backup_val
 
-  def reproduce(self) -> Reproducer:
-    """Reproduce the configured bug and return a :class:`Reproducer`.
+  def reproduce(self) -> ReprodRes:
+    """Reproduce the configured bug and return a :class:`ReprodRes`.
 
     For bench issues this builds LLVM and runs the reproducer tests.
     For ad-hoc issues this runs the given command on the given file.
     """
-    if self.fixenv is not None:
+    if self.fixenv is None:
+      raise RuntimeError(
+        "No issue configured. Use Harness.from_issue_card(), from_issue_id(), or from_reproducer()."
+      )
+    # Bench issues have reproducers with test bodies — use check_fast.
+    # Ad-hoc issues have empty test bodies — run the command directly.
+    if self.fixenv.card.reproducers[0].tests:
       return self._reproduce_bench()
-    if self._reproducer_file is not None:
-      return self._reproduce_adhoc()
-    raise RuntimeError(
-      "No issue configured. Use Harness.from_issue() or Harness.from_reproducer()."
-    )
+    return self._reproduce_adhoc()
 
-  def _reproduce_bench(self) -> Reproducer:
+  def _reproduce_bench(self) -> ReprodRes:
     check_failed, check_log = self.fixenv.check_fast()
     if check_failed:
       raise RuntimeError(f"Failed to build or reproduce the issue.\n\n{check_log}")
@@ -405,8 +454,7 @@ class Harness:
     opt_binary = str(self.build_dir / "bin" / "opt")
     command = _parse_raw_command(raw_cmd, str(reprod_file), opt_binary)
 
-    return Reproducer(
-      issue_id=self._issue_id,
+    return ReprodRes(
       bug_type=self.fixenv.get_bug_type(),
       file_path=reprod_file,
       command=command,
@@ -415,13 +463,16 @@ class Harness:
       symptom=reprod_log,
     )
 
-  def _reproduce_adhoc(self) -> Reproducer:
-    reprod_file = Path(self._reproducer_file).resolve()
+  def _reproduce_adhoc(self) -> ReprodRes:
+    card = self.fixenv.card
+    repro = card.reproducers[0]
+    reprod_file = Path(repro.file).resolve()
     if not reprod_file.exists():
       raise FileNotFoundError(f"Reproducer file not found: {reprod_file}")
 
+    raw_cmd = repro.commands[0]
     opt_binary = str(self.build_dir / "bin" / "opt")
-    command = _parse_raw_command(self._reproducer_command, str(reprod_file), opt_binary)
+    command = _parse_raw_command(raw_cmd, str(reprod_file), opt_binary)
 
     # Run the command to verify the bug manifests.
     cmd_str = " ".join(command)
@@ -429,7 +480,7 @@ class Harness:
       output = cmdline.getoutput(cmd_str, check=True, timeout=60)
       symptom = output.decode(errors="replace")
 
-      if self._reproducer_bug_type == "crash":
+      if card.bug_type == "crash":
         # If check=True didn't raise, opt exited 0 — unexpected for a crash.
         if not llvm_ops.is_opt_crash(symptom):
           raise RuntimeError(
@@ -440,16 +491,15 @@ class Harness:
       stdout = e.stdout.decode(errors="replace") if e.stdout else ""
       symptom = stderr or stdout or str(e)
     except TimeoutExpired:
-      if self._reproducer_bug_type != "hang":
+      if card.bug_type != "hang":
         raise
       symptom = "Process timed out (hang detected)."
 
-    return Reproducer(
-      issue_id="adhoc",
-      bug_type=self._reproducer_bug_type,
+    return ReprodRes(
+      bug_type=card.bug_type,
       file_path=reprod_file,
       command=command,
-      raw_command=self._reproducer_command,
+      raw_command=raw_cmd,
       source=reprod_file.read_text(),
       symptom=symptom,
     )
@@ -574,13 +624,12 @@ class Harness:
     except Exception:
       pass  # Binaries not built yet
 
-    if self.alive_tv:
-      try:
-        from harness.tools.llvm_alive2 import VerifyIrTool
+    try:
+      from harness.tools.llvm_alive2 import VerifyIrTool
 
-        tools.append(VerifyIrTool(self.alive_tv))
-      except Exception:
-        pass  # alive-tv not available
+      tools.append(VerifyIrTool(self.alive_tv_path))
+    except Exception:
+      pass  # alive-tv not available
 
     # -- Env-dependent tools (bench issue) --
     if self.fixenv is not None:

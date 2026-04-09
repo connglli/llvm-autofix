@@ -1,4 +1,4 @@
-from harness.llvm.intern.lab_env import FixEnv
+from harness.llvm import FixEnv
 from harness.lms.tool import FuncToolSpec, StatelessFuncToolBase
 
 

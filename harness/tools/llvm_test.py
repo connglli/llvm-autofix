@@ -2,7 +2,7 @@ from typing import Optional, Tuple
 
 from unidiff import PatchedFile, PatchSet
 
-from harness.llvm.intern.lab_env import FixEnv
+from harness.llvm import FixEnv
 from harness.llvm.intern.llvm import get_first_failed_test, pretty_render_log
 from harness.lms.tool import FuncToolCallException, FuncToolSpec, StatelessFuncToolBase
 

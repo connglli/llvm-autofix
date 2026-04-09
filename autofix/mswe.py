@@ -256,7 +256,7 @@ def main():
   try:
     stats = RunStats(command=vars(args))
 
-    with Harness.from_issue(
+    with Harness.from_issue_id(
       args.issue,
       cmake_args=ADDITIONAL_CMAKE_FLAGS,
       aggressive_testing=args.aggressive_testing,

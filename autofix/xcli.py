@@ -191,7 +191,7 @@ def main():
   if stats_path.exists():
     panic(f"Stats file {args.stats} already exists.")
 
-  with Harness.from_issue(
+  with Harness.from_issue_id(
     args.issue,
     cmake_args=ADDITIONAL_CMAKE_FLAGS,
     aggressive_testing=args.aggressive_testing,
@@ -208,7 +208,7 @@ def main():
       issue_symptom=issue.symptom,
       llvm_dir=str(h.llvm_dir),
       build_dir=str(h.build_dir),
-      llvm_alive_tv=h.alive_tv or "N/A",
+      llvm_alive_tv=str(h.alive_tv_path),
     )
 
     session = str(uuid())

@@ -111,7 +111,7 @@ def main():
     panic(f"The patch file {args.patch} does not exist.")
   patch_diff = patch_path.read_text()
 
-  with Harness.from_issue(
+  with Harness.from_issue_id(
     args.issue,
     cmake_args=ADDITIONAL_CMAKE_FLAGS,
   ) as h:

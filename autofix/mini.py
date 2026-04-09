@@ -12,7 +12,7 @@ import harness
 from harness.llvm import (
   AccessControl,
   Harness,
-  Reproducer,
+  ReprodRes,
 )
 from harness.llvm.debugger import DebuggerBase, StackTrace
 from harness.lms.agent import AgentBase, AgentConfig, AgentHooks
@@ -309,7 +309,7 @@ def patch_and_fix(
   editpoints: List[PatchEditPoint],
   reason_info: str,
   *,
-  rep: Reproducer,
+  rep: ReprodRes,
   aconf: AgentConfig,
   harness: Harness,
   stats: RunStats,
@@ -534,7 +534,7 @@ class SubmitPatchReportTool(StatelessFuncToolBase):
 
 
 def run_mini_agent(
-  rep: Reproducer,
+  rep: ReprodRes,
   *,
   # Opt information
   opt_pass: str,
@@ -650,7 +650,7 @@ def is_interesting_file(filename: str) -> bool:
 
 
 def prepare_debugger(
-  rep: Reproducer, *, harness: Harness
+  rep: ReprodRes, *, harness: Harness
 ) -> Tuple[DebuggerBase, StackTrace]:
   debugger = harness.attach_debugger(rep.command)
 
@@ -691,7 +691,7 @@ def prepare_debugger(
 
 
 def run_opt(
-  rep: Reproducer,
+  rep: ReprodRes,
   *,
   harness: Harness,
   backtrace: StackTrace,
@@ -864,7 +864,7 @@ def curate_new_insights(
 
 
 def autofix(
-  rep: Reproducer,
+  rep: ReprodRes,
   *,
   harness: Harness,
   aconf: AgentConfig,
@@ -990,7 +990,7 @@ def main():
       panic(f"Stats file {stats_path} already exists.")
 
   # --- Use Harness for LLVM setup and reproduction ---
-  with Harness.from_issue(
+  with Harness.from_issue_id(
     args.issue,
     cmake_args=ADDITIONAL_CMAKE_FLAGS,
     aggressive_testing=args.aggressive_testing,
@@ -1002,8 +1002,8 @@ def main():
     console.print(f"Issue ID: {args.issue}")
     console.print(f"Issue Type: {bug_type}")
     console.print(f"Issue Commit: {h.fixenv.get_base_commit()}")
-    console.print(f"Issue Title: {h.fixenv.get_hint_issue()['title']}")
-    console.print(f"Issue Labels: {h.fixenv.get_hint_issue()['labels']}")
+    console.print(f"Issue Title: {h.fixenv.get_issue_title()}")
+    console.print(f"Issue Labels: {h.fixenv.get_issue_labels()}")
 
     console.print("Building LLVM and try reproducing the issue ...")
     rep = h.reproduce()

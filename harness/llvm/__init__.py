@@ -1,27 +1,17 @@
 from harness.llvm.access import AccessControl
-from harness.llvm.harness import Harness, Reproducer
+from harness.llvm.harness import Harness, ReprodRes
+from harness.llvm.intern.lab_env import FixEnv
+from harness.llvm.intern.llvm_code import CodeLine, CodeSnippet, LlvmCode
+from harness.llvm.issue import IssueCard, Reproducer
 
 __all__ = [
   "AccessControl",
+  "LlvmCode",
   "CodeLine",
   "CodeSnippet",
   "FixEnv",
   "Harness",
+  "IssueCard",
+  "ReprodRes",
   "Reproducer",
 ]
-
-
-def __getattr__(name: str):
-  if name == "FixEnv":
-    from harness.llvm.intern.lab_env import FixEnv
-
-    return FixEnv
-  if name == "CodeLine":
-    from harness.llvm.intern.llvm_code import CodeLine
-
-    return CodeLine
-  if name == "CodeSnippet":
-    from harness.llvm.intern.llvm_code import CodeSnippet
-
-    return CodeSnippet
-  raise AttributeError(f"module 'harness.llvm' has no attribute {name!r}")

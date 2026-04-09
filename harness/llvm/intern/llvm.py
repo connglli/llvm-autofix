@@ -1,3 +1,4 @@
+import json
 import os
 import subprocess
 import tempfile
@@ -23,6 +24,12 @@ if "--quiet" not in subprocess.run(
   ["ninja", "--help"], capture_output=True
 ).stderr.decode("utf-8"):
   raise RuntimeError("Please update ninja to version 1.11.0 or later")
+
+
+def load_benchmark_issue(issue_id: str) -> dict:
+  """Load a benchmark issue JSON from the dataset directory."""
+  with open(os.path.join(dataset_dir, f"{issue_id}.json")) as f:
+    return json.load(f)
 
 
 def _decode_output(output):
