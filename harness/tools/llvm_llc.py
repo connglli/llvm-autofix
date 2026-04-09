@@ -14,7 +14,7 @@ class CompileIrTool(LlvmBuildDirMixin, StatelessFuncToolBase):
 
   def spec(self) -> FuncToolSpec:
     return FuncToolSpec(
-      "compile_ir",
+      "llvm_compile_ir",
       "Compile an LLVM IR file to target assembly using llc and return the result. "
       "Useful for inspecting code generation decisions or checking how a transformation affects the final assembly. "
       f"Note: uses the llc binary built at {self.llvm_build_dir}, so its behavior reflects any local edits to the LLVM source.",

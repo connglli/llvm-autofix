@@ -17,11 +17,11 @@ class VerifyIrTool(StatelessFuncToolBase):
 
   def spec(self) -> FuncToolSpec:
     return FuncToolSpec(
-      "verify_ir",
+      "llvm_verify_ir",
       "Check whether a transformation from one LLVM IR to another is semantically correct "
       "(i.e., the target IR is a refinement of the source). "
       "Reports incorrect transformations with a counterexample if found. "
-      "Use the optimize_ir tool first to produce the transformed IR file if needed.",
+      "Use the llvm_optimize_ir tool first to produce the transformed IR file if needed.",
       [
         FuncToolSpec.Param(
           "src_path",

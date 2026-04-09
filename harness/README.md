@@ -36,7 +36,7 @@ with Harness.from_reproducer("crash.ll", "opt -passes=instcombine -S", "crash") 
 # General LLVM workspace (superopt, dev)
 with Harness.workspace() as h:
     h.build()
-    opt = h.make_tool("optimize_ir")
+    opt = h.make_tool("llvm_optimize_ir")
     opt.call(input_path="test.ll", args="-O2 -S")
 ```
 
@@ -191,10 +191,10 @@ components = h.llvmcode.infer_related_components(["llvm/lib/Transforms/Scalar/GV
 
 | Dependency | Tools provided |
 |---|---|
-| Always | `read`, `list`, `find`, `ripgrep`, `edit`, `write`, `bash` |
-| build_dir | `optimize_ir`, `compile_ir`, `interpret_ir` |
-| alive-tv | `verify_ir` |
-| fixenv | `llvm_test`, `llvm_reset`, `llvm_preview_patch` |
+| Always | `read`, `list`, `find`, `ripgrep`, `edit`, `write`, `bash`, `insight` |
+| build_dir | `llvm_optimize_ir`, `llvm_compile_ir`, `llvm_interpret_ir` |
+| alive-tv | `llvm_verify_ir` |
+| fixenv | `llvm_build`, `llvm_test`, `llvm_reset`, `llvm_preview_patch` |
 | debugger | `llvm_code`, `llvm_docs`, `llvm_debug`, `llvm_eval_expr`, `llvm_langref` |
 
 Some tools are **client-managed** — they are defined in `harness/tools/` but not created by the harness because they require agent references or encode workflow-specific logic. These include `subagent` (sub-agent spawning), `todo` (stateful tracking), and `askq` (user interaction). See `harness/tools/README.md` for the full list. Clients register them directly on the agent after creation.

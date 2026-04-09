@@ -15,7 +15,7 @@ class OptimizeIrTool(LlvmBuildDirMixin, StatelessFuncToolBase):
 
   def spec(self) -> FuncToolSpec:
     return FuncToolSpec(
-      "optimize_ir",
+      "llvm_optimize_ir",
       "Apply LLVM optimization passes to an LLVM IR file and return the transformed IR. "
       "Useful for reproducing a transformation, testing how a specific pass rewrites IR, "
       "or checking if opt crashes on a given input. "

@@ -98,10 +98,10 @@ ENABLED_REPAIR_TOOLS = {
   "llvm_reset",
   "llvm_test",
   "llvm_preview_patch",
-  "interpret_ir",
-  "optimize_ir",
-  "verify_ir",
-  "compile_ir",
+  "llvm_interpret_ir",
+  "llvm_optimize_ir",
+  "llvm_verify_ir",
+  "llvm_compile_ir",
   # Interaction tools
   "ask",  # Enabled when --interactive
   # Report tool to submit a patch report

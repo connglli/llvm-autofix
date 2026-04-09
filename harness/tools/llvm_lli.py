@@ -14,7 +14,7 @@ class InterpretIrTool(LlvmBuildDirMixin, StatelessFuncToolBase):
 
   def spec(self) -> FuncToolSpec:
     return FuncToolSpec(
-      "interpret_ir",
+      "llvm_interpret_ir",
       "Execute an LLVM IR file using the LLVM interpreter and return its output and exit code. "
       "Useful for checking the runtime behavior of an IR program, or confirming a miscompilation "
       "by comparing execution results before and after a transformation. "

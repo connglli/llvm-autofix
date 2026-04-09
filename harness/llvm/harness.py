@@ -590,8 +590,8 @@ class Harness:
 
     Tools are gated by available dependencies:
 
-    * Always (llvm_dir): read, list, find, ripgrep, edit, write, bash
-    * build_dir present: optimize_ir, compile_ir, interpret_ir, verify_ir
+    * Always (llvm_dir): read, list, find, ripgrep, edit, write, bash, insight
+    * build_dir present: llvm_optimize_ir, llvm_compile_ir, llvm_interpret_ir, llvm_verify_ir
     * fixenv present (bench issue): llvm_build, llvm_test, llvm_reset, llvm_preview_patch
     * debugger attached: llvm_code, llvm_docs, llvm_debug, llvm_eval_expr, llvm_langref
     """

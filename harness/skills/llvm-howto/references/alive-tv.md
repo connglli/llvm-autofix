@@ -121,7 +121,7 @@ supported features include:
 ### Attribute Sensitivity
 
 The attributes `noalias` and `nofree` can cause spurious "incorrect"
-results. The harness's `verify_ir` tool automatically strips these
+results. The harness's `llvm_verify_ir` tool automatically strips these
 before verification.
 
 ### Function-Level Only
