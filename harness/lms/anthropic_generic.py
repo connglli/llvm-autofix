@@ -26,7 +26,6 @@ class ClaudeGenericAgent(GenericAgent):
       model=self.model,
       messages=messages,
       temperature=self.temperature,
-      top_p=self.top_p,
       max_tokens=self.max_completion_tokens,
       thinking=self.thinking,
       stream=False,
@@ -45,7 +44,7 @@ class ClaudeGenericAgent(GenericAgent):
 
     for content in response.content:
       if content.type == "thinking":
-        reasoning_content.append(content.text)
+        reasoning_content.append(content.thinking)
       elif content.type == "text":
         answer_content.append(content.text)
 

@@ -50,7 +50,6 @@ class ClaudeAgent(AgentBase):
         model=self.model,
         messages=messages,
         temperature=self.temperature,
-        top_p=self.top_p,
         max_tokens=self.max_completion_tokens,
         thinking=self.thinking,
         tools=(
