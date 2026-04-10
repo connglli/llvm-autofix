@@ -136,11 +136,11 @@ class GenericAgent(AgentBase):
 
       # Handle normal response
       self.append_assistant_message(answer_content)
-      cont_exec, result = hooks.post_response(answer_content)
+      proceed, result = hooks.post_response(answer_content)
       self.append_user_message(
         result
       )  # Append the message in case the user may continue to run the agent
-      if not cont_exec:
+      if not proceed:
         return result
 
   @abstractmethod
@@ -227,9 +227,19 @@ class GenericAgent(AgentBase):
       call_id="<no-id>", name=tool_name, arguments=tool_args_text
     )
 
+    if hooks.pre_tool_call:
+      proceed, pre_result = hooks.pre_tool_call(tool_name, tool_args)
+      if not proceed:
+        # Skip the tool call; feed the response back to the model
+        self.append_function_tool_call_output(call_id="<no-id>", result=str(pre_result))
+        return None  # None to continue agent execution
+      # pre_tool_call may have modified the args
+      if isinstance(pre_result, dict):
+        tool_args = pre_result
+
     result = self.perform_tool_call(tool_name, tool_args)
-    cont_exec, result = hooks.post_tool_call(tool_name, tool_args_text, result)
-    if not cont_exec:
+    proceed, result = hooks.post_tool_call(tool_name, tool_args_text, result)
+    if not proceed:
       self.append_user_message(result)
       return result  # Stop the agent execution and return the result
 

@@ -363,7 +363,7 @@ def patch_and_fix(
   # it edits, tests, calls llvm-patchreview, revises if needed, and
   # only submits once the reviewer approves.
 
-  def response_callback(_: str) -> Tuple[bool, str]:
+  def post_response(_: str) -> Tuple[bool, str]:
     ensure_tools_available(agent, ["llvm_test", "edit"])
     return True, (
       "Error: You are not calling any tool or your tool call format is incorrect. "
@@ -384,7 +384,18 @@ def patch_and_fix(
     cur_patch = fixenv.dump_patch()
     return verdict == _VERDICT_APPROVE and rev_patch == cur_patch
 
-  def tool_call_callback(name: str, _: str, res: str) -> Tuple[bool, str]:
+  def pre_tool_call(name: str, args: dict) -> Tuple[bool, dict | str]:
+    if name == "llvm-patchreview" and not _latest_test_passed():
+      return (
+        False,
+        "Error: cannot request review — "
+        "the latest test did not pass or you haven't tested yet. "
+        "If you haven't tested, please call the `llvm_test` tool first. "
+        "If you have tested, please check the feedback, adjust the patch, and try again.",
+      )  # Stop the tool call; feed the response back to the model
+    return True, args  # Continue the tool call with the original args
+
+  def post_tool_call(name: str, _: str, res: str) -> Tuple[bool, str]:
     ensure_tools_available(agent, ["llvm_test", "edit"])
     if name == "llvm_test":
       patch = fixenv.dump_patch()
@@ -406,7 +417,7 @@ def patch_and_fix(
           "the latest test did not pass or you didn't test. "
           "If you haven't tested, please call the `llvm_test` tool first. "
           "If you have tested, please check the feedback, adjust the patch, and try again.",
-        )
+        )  # Contiue the process but with this error message to guide the model
       if HAS_REVIEW_SKILL and not _latest_review_approved():
         return (
           True,
@@ -415,13 +426,17 @@ def patch_and_fix(
           "you didn't apply for patch review for the latest patch. "
           "If you haven't applied for review, please call the `llvm-patchreview` tool first. "
           "If you have applied for review, please check the feedback, adjust the patch, and try again.",
-        )
+        )  # Contiue the process but with this error message to guide the model
       stats.patch_report = res
-      return False, fixenv.dump_patch()
-    return True, res
+      return False, fixenv.dump_patch()  # Stop the process and return the final patch
+    return True, res  # Continue the process for other tools
 
   return agent.run(
-    AgentHooks(post_response=response_callback, post_tool_call=tool_call_callback),
+    AgentHooks(
+      post_response=post_response,
+      post_tool_call=post_tool_call,
+      pre_tool_call=pre_tool_call,
+    ),
   )
 
 
@@ -587,7 +602,7 @@ def run_mini_agent(
       "Please continue."
       " If you are done, call the `submit_analysis` tool with the edit points."
       " If you already called the `submit_analysis` tool, please check the format and try again."
-    )
+    )  # Continue the process but with this error message to guide the model
 
   def tool_call_handler(name: str, _: str, res: str) -> Tuple[bool, str]:
     ensure_tools_available(reason_agent, ["submit_analysis"])

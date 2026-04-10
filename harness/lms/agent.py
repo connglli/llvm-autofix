@@ -56,14 +56,10 @@ class ChatMessageFunctionCallOutput(ChatMessage):
 # Agent hooks
 # ---------------------------------------------------------------------------
 
-# TODO: Add pre-hooks for intercepting before processing
-# # pre_response(content) -> Optional[str]
-# #   Return None to proceed normally, or a replacement string to use instead.
-# PreResponseHook = Callable[[str], Optional[str]]
-# # pre_tool_call(name, args_dict) -> Tuple[bool, Optional[dict]]
-# #   Return (True, args) to proceed (args may be modified), or
-# #   (False, None) to skip the call (an error is fed back to the model).
-# PreToolCallHook = Callable[[str, dict], Tuple[bool, Optional[dict]]]
+# pre_tool_call(name, args_dict) -> Tuple[bool, dict | str]
+#   Return (True, args) to proceed (args may be modified), or
+#   (False, response) to skip the call (a response is fed back to the model).
+PreToolCallHook = Callable[[str, dict], Tuple[bool, dict | str]]
 
 # post_response(content) -> Tuple[bool, str]
 #   If flag is True, content is passed as user prompt for the next round.
@@ -81,10 +77,7 @@ class AgentHooks:
 
   post_response: PostResponseHook
   post_tool_call: PostToolCallHook
-
-  # TODO: Add pre-hooks for intercepting before processing
-  # pre_response: Optional[PreResponseHook] = None
-  # pre_tool_call: Optional[PreToolCallHook] = None
+  pre_tool_call: Optional[PreToolCallHook] = None
 
 
 # ---------------------------------------------------------------------------

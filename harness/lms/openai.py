@@ -104,10 +104,11 @@ class GPTAgent(AgentBase):
 
       if not response.tool_calls:
         # Handle normal response
-        self.append_assistant_message(response.content)
-        cont_exec, content = hooks.post_response(response.content)
-        if cont_exec:
-          self.append_user_message(content)
+        content = response.content
+        self.append_assistant_message(content)
+        proceed, content = hooks.post_response(content)
+        self.append_user_message(content)
+        if proceed:
           continue
         else:
           return content
@@ -122,9 +123,18 @@ class GPTAgent(AgentBase):
           name=name,
           arguments=args_text,
         )
+        if hooks.pre_tool_call:
+          proceed, pre_result = hooks.pre_tool_call(name, arguments)
+          if not proceed:
+            self.append_function_tool_call_output(
+              call_id=tool_call.id, result=str(pre_result)
+            )
+            continue
+          if isinstance(pre_result, dict):
+            arguments = pre_result
         result = self.perform_tool_call(name, arguments)
-        cont_exec, result = hooks.post_tool_call(name, args_text, result)
-        if not cont_exec:
+        proceed, result = hooks.post_tool_call(name, args_text, result)
+        if not proceed:
           self.append_user_message(result)
           return result
         self.append_function_tool_call_output(call_id=tool_call.id, result=result)

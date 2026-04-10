@@ -84,9 +84,31 @@ class ClaudeAgent(AgentBase):
               name=name,
               arguments=args_text,
             )
+            if hooks.pre_tool_call:
+              proceed, pre_result = hooks.pre_tool_call(name, args)
+              if not proceed:
+                skip_result = str(pre_result)
+                self.append_function_tool_call_output(
+                  call_id=call_id, result=skip_result
+                )
+                messages.append(
+                  {
+                    "role": "user",
+                    "content": [
+                      {
+                        "type": "tool_result",
+                        "tool_use_id": call_id,
+                        "content": skip_result,
+                      }
+                    ],
+                  }
+                )
+                continue
+              if isinstance(pre_result, dict):
+                args = pre_result
             result = self.perform_tool_call(name, args)
-            cont_exec, result = hooks.post_tool_call(name, args_text, result)
-            if not cont_exec:
+            proceed, result = hooks.post_tool_call(name, args_text, result)
+            if not proceed:
               self.append_user_message(result)
               return result
             self.append_function_tool_call_output(call_id=call_id, result=result)
@@ -105,16 +127,15 @@ class ClaudeAgent(AgentBase):
       elif response.stop_reason == "stop_sequence":
         text = response.content[0].text
         self.append_assistant_message(text)
-        cont_exec, content = hooks.post_response(text)
-        if cont_exec:
-          self.append_user_message(content)
-          messages.append(
-            {
-              "role": "user",
-              "content": content,
-            }
-          )
-        else:
+        proceed, content = hooks.post_response(text)
+        self.append_user_message(content)
+        messages.append(
+          {
+            "role": "user",
+            "content": content,
+          }
+        )
+        if not proceed:
           return content
 
   def _completion_api(self, **kwargs):
