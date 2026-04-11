@@ -14,9 +14,16 @@ class ClaudeGenericAgent(GenericAgent):
       self.reasoning_effort = omit
       self.thinking = omit
     elif self.reasoning_effort == "none":
-      self.thinking = "disabled"
+      self.thinking = {"type": "disabled"}
+    elif self.reasoning_effort == "xhigh":
+      self.thinking = {
+        "type": "enabled",
+        # Leave 1/3 for the answer and use 2/3 for thinking
+        "budget_tokens": self.max_completion_tokens // 3 * 2,
+        "display": "summarized",
+      }
     else:
-      self.thinking = "adaptive"
+      self.thinking = {"type": "adaptive", "display": "summarized"}
     api_key = os.environ.get("LLVM_HARNESS_LM_API_KEY")
     base_url = os.environ.get("LLVM_HARNESS_LM_API_ENDPOINT") or None
     self.client = Anthropic(api_key=api_key, base_url=base_url)
