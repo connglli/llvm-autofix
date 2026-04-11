@@ -35,9 +35,15 @@ class BashTool(StatelessFuncToolBase):
   def spec(self) -> FuncToolSpec:
     return FuncToolSpec(
       "bash",
-      "Execute a shell command. "
-      "Use this for operations not covered by other tools — building the project, running opt/lli/llvm-lit, "
-      "piping commands together, or any other shell task. Some commands (git, rm, curl, etc.) are restricted.",
+      "Execute a shell command and returns its output. "
+      "Avoid this tool for dedicated tasks (e.g., reading/writing files, building/testing LLVM, etc.), "
+      "unless you have verified that a dedicated tool (e.g., `read`, and `llvm_test`) cannot accomplish your task. "
+      "Use this tool for tasks "
+      "requiring chaining commands with pipes (NO other tool supports this), "
+      "running shell scripts you wrote to accomplish a specific task, "
+      "executing binaries found but not covered by other tools, or "
+      "other shell tasks not supported elsewhere."
+      "Some commands (git, rm, curl, etc.) are restricted.",
       [
         FuncToolSpec.Param(
           "command",
