@@ -763,7 +763,7 @@ def _get_enabled_skills(
   harness: Harness, enabled: set[str]
 ) -> list[tuple[Path, int, Optional[int]]]:
   return [
-    (sk, MAX_TCS_LIGHTWEIGHT_TOOLS, MAX_TCS_LIGHTWEIGHT_TOOLS)
+    (sk, MAX_TCS_HEAVYWEIGHT_TOOLS, MAX_TCS_LIGHTWEIGHT_TOOLS)
     for sk in harness.get_skills()
     if sk.name in enabled
   ]
