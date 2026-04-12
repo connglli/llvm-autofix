@@ -6,6 +6,7 @@ description: >
   this skill when you have a patch that has passed LLVM testing and is ready for
   review. Pass the previously reviewed patch and the review report as `argument`,
   if present, so the reviewer can check for regressions from earlier attempts.
+context: fork
 ---
 
 # LLVM Patch Review and Analysis Principles
@@ -22,8 +23,8 @@ new, temporary `.ll` files for probing behavior with `opt` or `alive-tv`.
 ## Analysis Philosophy
 
 The patch under review has already passed LLVM's regression tests, but this
-analysis assumes the patch still **has** bugs. So you are looking for issues
-that are not caught by the existing test suite. This includes:
+the patch still **has** bugs. So you are looking for issues that are not caught
+by the existing test suite. This includes:
 
 + Unexpected Assertion Change (CRITICAL)
 + Unexpected Bypass (HIGH)
@@ -31,6 +32,14 @@ that are not caught by the existing test suite. This includes:
 + Lacking Generality (MEDIUM)
 + New Performance Issues (MEDIUM)
 + Code Smell / Style Issues (LOW)
+
+**Reproducer Rule:** For categories requiring a reproduction of the issue, you
+should create a minimal reproducer that demonstrates the issue with as little
+code as possible.
+
+**Approve Rule:** You should ONLY approve the patch if you find no issues in
+any category. In this case, argue point-by-point why the patch is correct and
+safe to land, against the previous judgement "the patch still has bugs".
 
 ## Common Pitfalls
 
@@ -151,6 +160,7 @@ Check quickly (one pass over the diff):
    - Prefer range-based `for` over index loops on containers.
    - No `NULL`; use `nullptr`.
    - No `typedef`; use `using`.
+   - More details are in LLVM project's `llvm/docs/CodingStandards.rst`.
 3. **Overly long functions:** If a function exceeds ~80 lines after the patch,
    note it.
 
@@ -210,7 +220,7 @@ most urgent concerns?>
 ...
 
 ## Verdict
-- APPROVE — patch is correct and safe to land (NO issues found,  none of
+- APPROVE — patch is correct and safe to land (NO issues found, none of
   minor issues, major issues, nor critical issues).
 - REVISE — patch is mostly correct but requires targeted fixes for all
   the found minor or major issues above before landing.
