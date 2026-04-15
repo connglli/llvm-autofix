@@ -192,7 +192,7 @@ components = h.llvmcode.infer_related_components(["llvm/lib/Transforms/Scalar/GV
 | Dependency | Tools provided |
 |---|---|
 | Always | `read`, `list`, `find`, `ripgrep`, `edit`, `write`, `bash`, `insight` |
-| build_dir | `llvm_optimize_ir`, `llvm_compile_ir`, `llvm_execute_ir`, `llvm_interpret_ir` |
+| build_dir | `llvm_optimize_ir`, `llvm_compile_ir`, `llvm_execute_ir`, `llvm_interpret_ir`, `llvm_miscompile_check` |
 | alive-tv | `llvm_verify_ir` |
 | fixenv | `llvm_build`, `llvm_test`, `llvm_reset`, `llvm_preview_patch` |
 | debugger | `llvm_code`, `llvm_docs`, `llvm_debug`, `llvm_eval_expr`, `llvm_langref` |
