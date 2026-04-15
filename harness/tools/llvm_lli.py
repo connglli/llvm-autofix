@@ -7,15 +7,15 @@ from harness.tools.llvm_mixins import LlvmBuildDirMixin
 from harness.utils.cmdline import spawn_process
 
 
-class InterpretIrTool(LlvmBuildDirMixin, StatelessFuncToolBase):
+class ExecuteIrTool(LlvmBuildDirMixin, StatelessFuncToolBase):
   def __init__(self, llvm_build_dir: str):
     LlvmBuildDirMixin.__init__(self, llvm_build_dir)
     self._lli = self._binary_path("lli")
 
   def spec(self) -> FuncToolSpec:
     return FuncToolSpec(
-      "llvm_interpret_ir",
-      "Execute an LLVM IR file using the LLVM interpreter and return its output and exit code. "
+      "llvm_execute_ir",
+      "Execute an LLVM IR file using the LLVM executor (i.e., lli) and return its output and exit code. "
       "Useful for checking the runtime behavior of an IR program, or confirming a miscompilation "
       "by comparing execution results before and after a transformation. "
       f"Note: uses the lli binary built at {self.llvm_build_dir}, so its behavior reflects any local edits to the LLVM source.",

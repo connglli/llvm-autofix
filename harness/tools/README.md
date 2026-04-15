@@ -73,7 +73,7 @@ Avoid mentioning implementation details (binary names, internal paths) unless th
 
 ### Tool names (exposed to the agent)
 - Use `snake_case`.
-- LLVM IR tools append `_ir` to indicate the input/output domain: `llvm_optimize_ir`, `llvm_verify_ir`, `llvm_compile_ir`, `llvm_interpret_ir`.
+- LLVM IR tools append `_ir` to indicate the input/output domain: `llvm_optimize_ir`, `llvm_verify_ir`, `llvm_compile_ir`, `llvm_execute_ir`.
 - LLVM-specific tools use an `llvm_` prefix in the tool name: `llvm_test`, `llvm_debug`, `llvm_code`, etc.
 
 ### Class names
@@ -123,7 +123,7 @@ class MyLlvmTool(LlvmBuildDirMixin, StatelessFuncToolBase):
 | Dependency | Tools |
 |---|---|
 | Always | `read`, `list`, `find`, `ripgrep`, `edit`, `write`, `bash`, `insight` |
-| build_dir | `llvm_optimize_ir`, `llvm_compile_ir`, `llvm_interpret_ir` |
+| build_dir | `llvm_optimize_ir`, `llvm_compile_ir`, `llvm_execute_ir` |
 | alive-tv | `llvm_verify_ir` |
 | fixenv | `llvm_build`, `llvm_test`, `llvm_reset`, `llvm_preview_patch` |
 | debugger | `llvm_code`, `llvm_docs`, `llvm_debug`, `llvm_eval_expr`, `llvm_langref` |

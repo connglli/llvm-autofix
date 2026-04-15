@@ -591,7 +591,7 @@ class Harness:
     Tools are gated by available dependencies:
 
     * Always (llvm_dir): read, list, find, ripgrep, edit, write, bash, insight
-    * build_dir present: llvm_optimize_ir, llvm_compile_ir, llvm_interpret_ir, llvm_verify_ir
+    * build_dir present: llvm_optimize_ir, llvm_compile_ir, llvm_execute_ir, llvm_verify_ir
     * fixenv present (bench issue): llvm_build, llvm_test, llvm_reset, llvm_preview_patch
     * debugger attached: llvm_code, llvm_docs, llvm_debug, llvm_eval_expr, llvm_langref
     """
@@ -626,11 +626,11 @@ class Harness:
     build_dir = str(self.build_dir)
     try:
       from harness.tools.llvm_llc import CompileIrTool
-      from harness.tools.llvm_lli import InterpretIrTool
+      from harness.tools.llvm_lli import ExecuteIrTool
       from harness.tools.llvm_opt import OptimizeIrTool
 
       tools.append(OptimizeIrTool(build_dir))
-      tools.append(InterpretIrTool(build_dir))
+      tools.append(ExecuteIrTool(build_dir))
       tools.append(CompileIrTool(build_dir))
     except Exception:
       pass  # Binaries not built yet
