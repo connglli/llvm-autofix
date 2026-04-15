@@ -13,8 +13,8 @@ class CheckOptimTool(LlvmBuildDirMixin, StatelessFuncToolBase):
   def __init__(self, llvm_build_dir: str):
     LlvmBuildDirMixin.__init__(self, llvm_build_dir)
     self._opt = self._binary_path("opt")
-    self._llubi = self._binary_path("llubi")
-    self._lli = self._binary_path("lli")
+    self._llubi = self.llvm_build_dir / "bin" / "llubi"
+    self._lli = self.llvm_build_dir / "bin" / "lli"
 
   def spec(self) -> FuncToolSpec:
     return FuncToolSpec(
@@ -25,7 +25,7 @@ class CheckOptimTool(LlvmBuildDirMixin, StatelessFuncToolBase):
       "(2) executes both original and optimized IR using llubi (or lli as fallback), "
       "and (3) compares the results. "
       "Use this to confirm or discover miscompilations on individual IR test cases. "
-      "If llubi crashes, set `use_lli` to true to fall back to lli.",
+      "If llubi crashes, set `use_lli` to true to force lli.",
       [
         FuncToolSpec.Param(
           "input_path",
@@ -46,11 +46,29 @@ class CheckOptimTool(LlvmBuildDirMixin, StatelessFuncToolBase):
           "use_lli",
           "boolean",
           False,
-          "If true, use lli instead of llubi for execution. "
-          "Use this if llubi crashes or has issues. Defaults to false.",
+          "If true, force lli instead of llubi for execution. "
+          "By default, llubi is preferred (falls back to lli if unavailable). "
+          "Use this if llubi crashes or has issues.",
         ),
       ],
     )
+
+  def _check(self, **kwargs):
+    super()._check(**kwargs)
+    if not self._llubi.is_file() and not self._lli.is_file():
+      raise FuncToolCallException(
+        f"Neither llubi nor lli found in {self.llvm_build_dir / 'bin'}. "
+        "Build LLVM first using `llvm_build`."
+      )
+
+  def _resolve_executor(self, use_lli: bool) -> tuple[Path, str]:
+    """Return (executor_path, executor_name) based on preference and availability."""
+    if use_lli:
+      return self._lli, "lli"
+    # Auto-detect: prefer llubi, fall back to lli
+    if self._llubi.is_file():
+      return self._llubi, "llubi"
+    return self._lli, "lli"
 
   def _optimize(self, ir_path: Path, args: str, output_path: Path) -> None:
     """Run opt on the IR file. Raises on failure or crash."""
@@ -71,8 +89,7 @@ class CheckOptimTool(LlvmBuildDirMixin, StatelessFuncToolBase):
 
   def _execute(self, ir_path: Path, use_lli: bool, timeout_s: int = 10) -> dict:
     """Execute an IR file and return the result."""
-    executor = self._lli if use_lli else self._llubi
-    executor_name = "lli" if use_lli else "llubi"
+    executor, executor_name = self._resolve_executor(use_lli)
 
     try:
       res = subprocess.run(
@@ -120,33 +137,32 @@ class CheckOptimTool(LlvmBuildDirMixin, StatelessFuncToolBase):
       orig_result = self._execute(input_file, use_lli)
       opt_result = self._execute(output_file, use_lli)
 
-      parts = []
-
-      def _fmt(label: str, result: dict) -> None:
-        parts.append(f"--- {label} ({result['executor']}) ---")
-        if result["timed_out"]:
-          parts.append("Timed out.")
-        else:
-          parts.append(f"Exit code: {result['return_code']}")
-        if result["stdout"]:
-          parts.append(f"stdout:\n{result['stdout']}")
-        if result["stderr"]:
-          parts.append(f"stderr:\n{result['stderr']}")
-
-      _fmt("Original", orig_result)
-      parts.append("")
-      _fmt("Optimized", opt_result)
-
       differs = (
         orig_result["return_code"] != opt_result["return_code"]
         or orig_result["stdout"] != opt_result["stdout"]
         or orig_result["timed_out"] != opt_result["timed_out"]
       )
 
-      parts.append("")
-      if differs:
-        parts.append("Result: MISCOMPILATION DETECTED — outputs differ.")
-      else:
-        parts.append("Result: OK — outputs match.")
+      details = []
 
-      return "\n".join(parts)
+      def _fmt(label: str, result: dict) -> None:
+        details.append(f"--- {label} ({result['executor']}) ---")
+        if result["timed_out"]:
+          details.append("Timed out.")
+        else:
+          details.append(f"Exit code: {result['return_code']}")
+        if result["stdout"]:
+          details.append(f"stdout:\n{result['stdout']}")
+        if result["stderr"]:
+          details.append(f"stderr:\n{result['stderr']}")
+
+      _fmt("Original", orig_result)
+      details.append("")
+      _fmt("Optimized", opt_result)
+
+      if differs:
+        verdict = "Optimization is INCORRECT (outputs differ)."
+      else:
+        verdict = "Optimization is correct."
+
+      return f"{verdict}\n\n" + "\n".join(details)

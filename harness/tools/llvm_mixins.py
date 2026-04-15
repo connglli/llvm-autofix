@@ -32,5 +32,5 @@ class LlvmBuildDirMixin:
     for name, path in self._required_binaries.items():
       if not path.is_file():
         raise FuncToolCallException(
-          f"{name} not found at {path}. Build LLVM first using llvm_build."
+          f"{name} not found at {path}. Build LLVM first using `llvm_build`."
         )
