@@ -66,6 +66,9 @@ ENABLED_REASON_TOOLS = {
   # Debugging tools
   "llvm_debug",
   "llvm_eval_expr",
+  # Execution tools
+  "llvm_interpret_ir",
+  "llvm_execute_ir",
   # Subagent tools
   "subagent",
   # Knowledge tools
