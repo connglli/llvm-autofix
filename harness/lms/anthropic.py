@@ -33,6 +33,17 @@ class ClaudeAgent(AgentBase):
     hooks: AgentHooks,
   ) -> str:
     messages = []
+    if self.tools.has_deferred_tools():
+      messages.append(
+        {
+          "role": "user",
+          "content": "NOTE: "
+          'Some of the provided tools may be marked by "[deferred]" in their description. '
+          "This means their descriptions and specifications are not fully provided. "
+          "Therefore, for these tools, be sure to use `tool_search` to load the full "
+          "description and specification before calling them.",
+        }
+      )
     for message in self.history:
       if isinstance(message, ChatMessageMessage):
         messages.append(

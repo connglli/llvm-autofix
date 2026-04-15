@@ -149,9 +149,7 @@ class StatefulFuncToolBase(FuncToolBase):
   def fresh(self) -> "StatefulFuncToolBase": ...
 
 
-_DEFERRED_STUB = (
-  "[deferred] {stub} — Use `tool_search` to see full description and specification."
-)
+_DEFERRED_STUB = "[deferred] {stub}"
 _DEFERRED_STUB_LEN = 32
 
 
@@ -175,7 +173,7 @@ class DeferredToolWrapper(FuncToolBase):
     return FuncToolSpec(
       real.name,
       _DEFERRED_STUB.format(stub=stub),
-      [],
+      [],  # Hide all parameters
       real.keywords,
     )
 
@@ -347,6 +345,9 @@ class ToolRegistry:
     return (
       name in self.tools if ignore_budget else name in self.list(ignore_budget=False)
     )
+
+  def has_deferred_tools(self) -> bool:
+    return len(self._deferred_tools) > 0
 
   def get(self, name: str) -> FuncToolBase:
     self._ensure_registered(name)

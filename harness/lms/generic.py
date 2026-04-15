@@ -30,6 +30,13 @@ You have access to the following {{num_tools}} tools to help you complete your t
 
 {{tool_specs}}
 
+### Deferred Tools ###
+
+Some of the above tools may be marked by "[deferred]" in their description. \
+This means their descriptions and specifications are not fully provided. \
+Therefore, for these tools, be sure to use `tool_search` to load the full \
+description and specification before calling them.
+
 ### Tool Call Format ###
 
 When using a tool, return a JSON object strictly following below format:
