@@ -62,9 +62,14 @@ class ClaudeAgent(AgentBase):
       )
 
       # Update tokens that we have consumed
+      cached_tokens = (
+        response.usage.cache_read_input_tokens
+        + response.usage.cache_creation_input_tokens
+      )
+      input_tokens = response.usage.input_tokens + cached_tokens
       self.meter.record_usage(
-        input_tokens=response.usage.input_tokens,
-        cached_tokens=response.usage.cache_read_input_tokens,
+        input_tokens=input_tokens,
+        cached_tokens=cached_tokens,
         output_tokens=response.usage.output_tokens,
       )
       messages.append({"role": "assistant", "content": response.content})
