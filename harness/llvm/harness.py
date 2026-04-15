@@ -591,7 +591,7 @@ class Harness:
     Tools are gated by available dependencies:
 
     * Always (llvm_dir): read, list, find, ripgrep, edit, write, bash, insight
-    * build_dir present: llvm_optimize_ir, llvm_compile_ir, llvm_execute_ir, llvm_interpret_ir, llvm_verify_ir, llvm_miscompile_check
+    * build_dir present: llvm_optimize_ir, llvm_compile_ir, llvm_execute_ir, llvm_interpret_ir, llvm_verify_ir, llvm_check_optim
     * fixenv present (bench issue): llvm_build, llvm_test, llvm_reset, llvm_preview_patch
     * debugger attached: llvm_code, llvm_docs, llvm_debug, llvm_eval_expr, llvm_langref
     """
@@ -623,10 +623,10 @@ class Harness:
     tools.append(BashTool(self.acl))
 
     # -- Build-dir tools --
+    from harness.tools.llvm_check_optim import CheckOptimTool
     from harness.tools.llvm_llc import CompileIrTool
     from harness.tools.llvm_lli import ExecuteIrTool
     from harness.tools.llvm_llubi import InterpretIrTool
-    from harness.tools.llvm_miscompile_check import MiscompileCheckTool
     from harness.tools.llvm_opt import OptimizeIrTool
 
     build_dir = str(self.build_dir)
@@ -634,7 +634,7 @@ class Harness:
     tools.append(ExecuteIrTool(build_dir))
     tools.append(CompileIrTool(build_dir))
     tools.append(InterpretIrTool(build_dir))
-    tools.append(MiscompileCheckTool(build_dir))
+    tools.append(CheckOptimTool(build_dir))
 
     from harness.tools.llvm_alive2 import VerifyIrTool
 

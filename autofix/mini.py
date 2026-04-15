@@ -105,7 +105,7 @@ ENABLED_REPAIR_TOOLS = {
   "llvm_optimize_ir",
   "llvm_compile_ir",
   "llvm_verify_ir",
-  "llvm_miscompile_check",
+  "llvm_check_optim",
   # Interaction tools
   "ask",  # Enabled when --interactive
   # Report tool to submit a patch report

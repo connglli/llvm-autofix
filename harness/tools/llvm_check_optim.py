@@ -9,7 +9,7 @@ from harness.tools.llvm_mixins import LlvmBuildDirMixin
 from harness.utils.cmdline import spawn_process
 
 
-class MiscompileCheckTool(LlvmBuildDirMixin, StatelessFuncToolBase):
+class CheckOptimTool(LlvmBuildDirMixin, StatelessFuncToolBase):
   def __init__(self, llvm_build_dir: str):
     LlvmBuildDirMixin.__init__(self, llvm_build_dir)
     self._opt = self._binary_path("opt")
@@ -18,7 +18,7 @@ class MiscompileCheckTool(LlvmBuildDirMixin, StatelessFuncToolBase):
 
   def spec(self) -> FuncToolSpec:
     return FuncToolSpec(
-      "llvm_miscompile_check",
+      "llvm_check_optim",
       "Check whether an LLVM optimization pass miscompiles a single IR program. "
       "Given an IR file (which must define a @main function) and opt arguments, "
       "this tool: (1) runs opt to produce the optimized IR, "
