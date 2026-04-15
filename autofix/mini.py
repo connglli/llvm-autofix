@@ -100,6 +100,7 @@ ENABLED_REPAIR_TOOLS = {
   "llvm_reset",
   "llvm_test",
   "llvm_preview_patch",
+  "llvm_interpret_ir",
   "llvm_execute_ir",
   "llvm_optimize_ir",
   "llvm_verify_ir",

@@ -21,6 +21,7 @@ class VerifyIrTool(StatelessFuncToolBase):
       "Check whether a transformation from one LLVM IR to another is semantically correct "
       "(i.e., the target IR is a refinement of the source). "
       "Reports incorrect transformations with a counterexample if found. "
+      "This is the alive2 tool, which performs formal verification based on SMT solving. "
       "Use the llvm_optimize_ir tool first to produce the transformed IR file if needed.",
       [
         FuncToolSpec.Param(
