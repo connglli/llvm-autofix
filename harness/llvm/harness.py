@@ -623,31 +623,22 @@ class Harness:
     tools.append(BashTool(self.acl))
 
     # -- Build-dir tools --
+    from harness.tools.llvm_llc import CompileIrTool
+    from harness.tools.llvm_lli import ExecuteIrTool
+    from harness.tools.llvm_llubi import InterpretIrTool
+    from harness.tools.llvm_miscompile_check import MiscompileCheckTool
+    from harness.tools.llvm_opt import OptimizeIrTool
+
     build_dir = str(self.build_dir)
-    try:
-      from harness.tools.llvm_llc import CompileIrTool
-      from harness.tools.llvm_lli import ExecuteIrTool
-      from harness.tools.llvm_llubi import InterpretIrTool
-      from harness.tools.llvm_miscompile_check import MiscompileCheckTool
-      from harness.tools.llvm_opt import OptimizeIrTool
+    tools.append(OptimizeIrTool(build_dir))
+    tools.append(ExecuteIrTool(build_dir))
+    tools.append(CompileIrTool(build_dir))
+    tools.append(InterpretIrTool(build_dir))
+    tools.append(MiscompileCheckTool(build_dir))
 
-      tools.append(OptimizeIrTool(build_dir))
-      tools.append(ExecuteIrTool(build_dir))
-      tools.append(CompileIrTool(build_dir))
-      try:
-        tools.append(InterpretIrTool(build_dir))
-        tools.append(MiscompileCheckTool(build_dir))
-      except Exception:
-        pass  # llubi might not exist in older LLVM versions
-    except Exception:
-      pass  # Binaries not built yet
+    from harness.tools.llvm_alive2 import VerifyIrTool
 
-    try:
-      from harness.tools.llvm_alive2 import VerifyIrTool
-
-      tools.append(VerifyIrTool(self.alive_tv_path))
-    except Exception:
-      pass  # alive-tv not available
+    tools.append(VerifyIrTool(self.alive_tv_path))
 
     # -- Env-dependent tools (bench issue) --
     if self.fixenv is not None:

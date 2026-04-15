@@ -15,7 +15,7 @@ class InterpretIrTool(LlvmBuildDirMixin, StatelessFuncToolBase):
   def spec(self) -> FuncToolSpec:
     return FuncToolSpec(
       "llvm_interpret_ir",
-      "Interprete an LLVM IR file strictly following LLVM IR's semantics and return its output and exit code."
+      "Interprete an LLVM IR file strictly following LLVM IR's semantics and return its output and exit code. "
       "This tool is different from `llvm_execute_ir` in that it will check immediate undefined behaviors "
       "during execution and handle poison values properly. "
       "It does not have JIT compilation, neither. "

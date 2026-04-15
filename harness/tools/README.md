@@ -111,10 +111,10 @@ from harness.tools.llvm_mixins import LlvmBuildDirMixin
 class MyLlvmTool(LlvmBuildDirMixin, StatelessFuncToolBase):
   def __init__(self, llvm_build_dir: str):
     LlvmBuildDirMixin.__init__(self, llvm_build_dir)
-    self._binary = self._binary_path("my-binary")  # validated eagerly
+    self._binary = self._binary_path("my-binary")  # validated lazily at call time
 ```
 
-`LlvmBuildDirMixin` requires a completed LLVM build and validates the build directory at construction time.
+`LlvmBuildDirMixin` resolves binary paths eagerly but validates them lazily via `_check()` before each call. This means the tool is always registered — if LLVM hasn't been built yet, the agent gets an actionable error telling it to run `llvm_build`.
 
 ## Harness-Managed vs Client-Managed Tools
 
@@ -122,8 +122,7 @@ class MyLlvmTool(LlvmBuildDirMixin, StatelessFuncToolBase):
 
 | Dependency | Tools |
 |---|---|
-| Always | `read`, `list`, `find`, `ripgrep`, `edit`, `write`, `bash`, `insight` |
-| build_dir | `llvm_optimize_ir`, `llvm_compile_ir`, `llvm_execute_ir`, `llvm_interpret_ir`, `llvm_miscompile_check` |
+| Always | `read`, `list`, `find`, `ripgrep`, `edit`, `write`, `bash`, `insight`, `llvm_optimize_ir`, `llvm_compile_ir`, `llvm_execute_ir`, `llvm_interpret_ir`, `llvm_miscompile_check` |
 | alive-tv | `llvm_verify_ir` |
 | fixenv | `llvm_build`, `llvm_test`, `llvm_reset`, `llvm_preview_patch` |
 | debugger | `llvm_code`, `llvm_docs`, `llvm_debug`, `llvm_eval_expr`, `llvm_langref` |

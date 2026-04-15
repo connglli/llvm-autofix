@@ -41,16 +41,16 @@ PROMPT_REPAIR = _PROMPTS["repair"]
 
 # We restrict the agent to chat at most 500 rounds for each run
 # and consume at most 5 million tokens among all runs.
-AGENT_TEMPERATURE = 0
+AGENT_TEMPERATURE = 0  # 0.8
 AGENT_TOP_P = 0.95
 AGENT_MAX_COMPLETION_TOKENS = 8092
-AGENT_REASONINT_EFFORT = "NOT_GIVEN"
-AGENT_MAX_CHAT_ROUNDS = 500
-AGENT_MAX_CONSUMED_TOKENS = 5_000_000
+AGENT_REASONINT_EFFORT = "NOT_GIVEN"  # "xhigh"
+AGENT_MAX_CHAT_ROUNDS = 500  # 1000
+AGENT_MAX_CONSUMED_TOKENS = 5_000_000  # 10_000_000
 # We give context gathering tools more budget and restrict the models
 # to be careful and think twice when they are editing and testing.
 MAX_TCS_LIGHTWEIGHT_TOOLS = 250
-MAX_TCS_HEAVYWEIGHT_TOOLS = 25
+MAX_TCS_HEAVYWEIGHT_TOOLS = 25  # 250
 MIN_EDITPOINT_LINES = 3
 # Enabled tools per stage and their categories
 ENABLED_REASON_TOOLS = {
