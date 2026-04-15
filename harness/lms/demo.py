@@ -33,6 +33,7 @@ class GetWeather(StatelessFuncToolBase):
           "Whether to use Celsius (True) or Fahrenheit (False) for the temperature.",
         ),
       ],
+      [],
     )
 
   def _call(self, *, location, date, celsius, **kwargs) -> str:
@@ -97,6 +98,7 @@ class GetAverage(StatelessFuncToolBase):
           "numbers", "list[int|float]", True, "A list of numbers to sum up."
         )
       ],
+      [],
     )
 
   def _call(self, *, numbers: list, **kwargs) -> str:
@@ -122,6 +124,7 @@ class FinishTask(StatelessFuncToolBase):
           "result", "string", True, "The final result presenting to the user."
         )
       ],
+      [],
     )
 
   def _call(self, *, result: str, **kwargs) -> str:

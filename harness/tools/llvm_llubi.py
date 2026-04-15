@@ -40,6 +40,16 @@ class InterpretIrTool(LlvmBuildDirMixin, StatelessFuncToolBase):
           "Example: '--verbose' to print intermediate results for each instruction executed.",
         ),
       ],
+      keywords=[
+        "llubi",
+        "interpret",
+        "ub",
+        "undefined",
+        "behavior",
+        "poison",
+        "ir",
+        "semantics",
+      ],
     )
 
   def _call(self, *, input_path: str, args: str = "", **kwargs) -> str:

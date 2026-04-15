@@ -33,6 +33,7 @@ class CompileIrTool(LlvmBuildDirMixin, StatelessFuncToolBase):
           "Example: '-march=x86-64 -mattr=+avx2 -O2' or '-o /tmp/output.s'.",
         ),
       ],
+      keywords=["llc", "compile", "assembly", "codegen", "target", "ir"],
     )
 
   def _call(self, *, input_path: str, args: str = "", **kwargs) -> str:

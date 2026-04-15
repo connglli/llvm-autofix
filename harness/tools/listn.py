@@ -25,6 +25,7 @@ class ListNTool(StatelessFuncToolBase):
           f"The index to start returning the contents from (1-based index). For example, when k=10, it will return the 10th content and the next {self.n - 1} results.",
         ),
       ],
+      keywords=["list", "directory", "ls", "files", "tree"],
     )
 
   def _call(self, *, directory: str, k: int, **kwargs) -> str:

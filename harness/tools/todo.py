@@ -39,6 +39,7 @@ class TodoTool(StatefulFuncToolBase):
           "Additional notes or sub-tasks for the todo item (optional for 'add' and 'update').",
         ),
       ],
+      keywords=["todo", "task", "progress", "track", "plan"],
     )
 
   def _call(

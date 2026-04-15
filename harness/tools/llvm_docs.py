@@ -17,6 +17,7 @@ class DocsTool(StatelessFuncToolBase):
       "Retrieve the header comment / documentation of an LLVM C++ function by name. "
       "Use this to understand a function's purpose and contract before reading its implementation.",
       [FuncToolSpec.Param("func", "string", True, "Name of the function")],
+      keywords=["documentation", "header", "comment", "function", "cpp"],
     )
 
   def _call(self, *, func: str, **kwargs) -> str:

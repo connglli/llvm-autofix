@@ -24,6 +24,7 @@ class ResetTool(StatelessFuncToolBase):
           "The absolute path of the file to reset.",
         )
       ],
+      keywords=["reset", "restore", "git", "checkout", "revert"],
     )
 
   def _call(self, *, file: str, **kwargs) -> str:

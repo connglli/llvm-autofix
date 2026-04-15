@@ -39,9 +39,8 @@ class ClaudeGenericAgent(GenericAgent):
     )
 
     # Update tokens that we have consumed
-    cached_tokens = (
-      response.usage.cache_read_input_tokens
-      + response.usage.cache_creation_input_tokens
+    cached_tokens = (response.usage.cache_read_input_tokens or 0) + (
+      response.usage.cache_creation_input_tokens or 0
     )
     input_tokens = response.usage.input_tokens + cached_tokens
     self.meter.record_usage(

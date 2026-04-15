@@ -30,6 +30,7 @@ class Skill:
   context_fork: bool = (
     False  # Whether this skill should run as a standalone, context-unaware sub-agent
   )
+  keywords: List[str] = field(default_factory=list)  # Keywords for tool_search
 
 
 class SkillDoneTool(StatelessFuncToolBase):
@@ -47,6 +48,7 @@ class SkillDoneTool(StatelessFuncToolBase):
           "The final result text to return from this skill.",
         ),
       ],
+      ["skill", "done", "finish", "complete"],
     )
 
   def _call(self, *, result: str, **kwargs) -> str:
@@ -70,6 +72,7 @@ class SkillTool(StatelessFuncToolBase):
       self.skill.name,
       self.skill.description,
       self.skill.parameters,
+      self.skill.keywords,
     )
 
   def _call(self, **kwargs) -> str:
@@ -192,4 +195,5 @@ def load_skill(path: Path) -> Skill:
     references=references,
     scripts=scripts,
     context_fork=header.get("context", None) == "fork",
+    keywords=header.get("keywords", []),
   )

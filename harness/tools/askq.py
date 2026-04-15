@@ -21,6 +21,7 @@ class AskQuestionTool(StatelessFuncToolBase):
           "The question to ask the user.",
         ),
       ],
+      keywords=["ask", "question", "user", "interactive"],
     )
 
   def _call(self, *, question: str, **kwargs) -> str:

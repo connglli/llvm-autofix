@@ -12,6 +12,7 @@ class PreviewTool(StatelessFuncToolBase):
       "Show the current LLVM diff of all changes you have made so far. "
       "Use this to review your patch before testing, or to check which files you have modified.",
       [],
+      keywords=["diff", "patch", "preview", "changes", "git"],
     )
 
   def _call(self, **kwargs) -> str:

@@ -2,12 +2,10 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Optional
+from typing import Optional
 
-from harness.lms.tool import FuncToolSpec, StatelessFuncToolBase
-
-if TYPE_CHECKING:
-  from harness.lms.agent import AgentBase
+from harness.lms.agent import AgentBase
+from harness.lms.tool import TOOL_SEARCH_NAME, FuncToolSpec, StatelessFuncToolBase
 
 
 class AgentDoneTool(StatelessFuncToolBase):
@@ -25,6 +23,7 @@ class AgentDoneTool(StatelessFuncToolBase):
           "The final result text to return from this sub-agent.",
         ),
       ],
+      keywords=["agent", "done", "complete", "result"],
     )
 
   def _call(self, *, result: str, **kwargs) -> str:
@@ -70,6 +69,7 @@ class SubAgentTool(StatelessFuncToolBase):
           "this agent tool itself).",
         ),
       ],
+      keywords=["subagent", "spawn", "delegate", "parallel"],
     )
 
   def _call(
@@ -82,22 +82,29 @@ class SubAgentTool(StatelessFuncToolBase):
     from harness.lms.agent import AgentHooks
     from harness.lms.meter import ReachRoundLimit, ReachTokenLimit
     from harness.lms.skill import SkillTool
+    from harness.lms.tool import DeferredToolWrapper
 
-    # Resolve tool names
+    # Resolve tool names (skip parent's tool_search — sub gets its own)
     if tools is not None:
-      tool_names = [t.strip() for t in tools.split(",") if t.strip()]
+      tool_names = [
+        t.strip()
+        for t in tools.split(",")
+        if t.strip() and t.strip() != TOOL_SEARCH_NAME
+      ]
     else:
-      # Default: everything from parent except this agent tool
       tool_names = [
         name
         for name in self.agent.tools.list()
         if not isinstance(self.agent.tools.get(name), SubAgentTool)
+        and name != TOOL_SEARCH_NAME
       ]
 
     # Create sub-agent (no history)
     sub = self.agent.config.create_agent()
 
     # Register requested tools and skills (fresh instances, skills rebound).
+    # Deferred tools are re-registered with deferred=True so the sub-agent
+    # gets its own tool_search.
     # Each tool inherits the parent's remaining budget. The post_tool_call
     # hook keeps the parent's budget in sync by decrementing it on each call.
     # TODO: This assumes sequential execution — only one sub-agent runs at a
@@ -109,12 +116,13 @@ class SubAgentTool(StatelessFuncToolBase):
     for name in tool_names:
       if self.agent.tools.has(name):
         tool_obj = self.agent.tools.get(name)
+        is_deferred = isinstance(tool_obj, DeferredToolWrapper)
         if isinstance(tool_obj, SkillTool):
           tool_obj = tool_obj.for_agent(sub)
         else:
           tool_obj = tool_obj.fresh()
         budget = self.agent.tools.get_remaining_budget(name)
-        sub.register_tool(tool_obj, budget)
+        sub.register_tool(tool_obj, budget, deferred=is_deferred)
       else:
         missing.append(name)
 

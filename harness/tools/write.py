@@ -24,6 +24,7 @@ class WriteTool(StatelessFuncToolBase):
           "content", "string", True, "The content to write to the file."
         ),
       ],
+      keywords=["write", "file", "create", "overwrite"],
     )
 
   def _call(self, *, file: str, content: str, **kwargs) -> str:

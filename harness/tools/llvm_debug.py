@@ -16,6 +16,7 @@ class DebugTool(StatelessFuncToolBase):
       [
         FuncToolSpec.Param("cmd", "string", True, "The GDB command"),
       ],
+      keywords=["gdb", "debugger", "breakpoint", "backtrace", "step"],
     )
 
   def _call(self, *, cmd: str, **kwargs) -> str:

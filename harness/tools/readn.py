@@ -25,6 +25,7 @@ class ReadNTool(StatelessFuncToolBase):
           "The line number to start reading from (1-based index).",
         ),
       ],
+      keywords=["read", "file", "source", "inspect", "view"],
     )
 
   def _call(self, *, file: str, position: int, **kwargs) -> str:

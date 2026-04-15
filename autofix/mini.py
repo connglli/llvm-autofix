@@ -129,6 +129,23 @@ ALL_ENABLED_SKILLS = (
   ENABLED_REASON_SKILLS | ENABLED_REPAIR_SKILLS | ENABLED_CURATE_INSIGHT_SKILLS
 )
 HAS_REVIEW_SKILL = "llvm-patchreview" in ENABLED_REPAIR_SKILLS
+# Deferred tools — any tool in any stage is deferred if listed here.
+# These get stub descriptions; the agent uses tool_search to load full specs.
+DEFERRED_TOOLS = {
+  "insight",
+  "llvm_docs",
+  "llvm_langref",
+  "llvm_code",
+  "llvm_interpret_ir",
+  "llvm_execute_ir",
+  "llvm_optimize_ir",
+  "llvm_compile_ir",
+  "llvm_verify_ir",
+  "llvm_check_optim",
+  "llvm_verify_optim",
+  "llvm-patchreview",
+  "llvm-insight-search",
+}
 
 # - ================================================
 # - LLVM settings
@@ -477,6 +494,7 @@ class SubmitAnalysisTool(StatelessFuncToolBase):
           '5. "Conclusion".',
         ),
       ],
+      [],
     )
 
   def _call(
@@ -551,6 +569,7 @@ class SubmitPatchReportTool(StatelessFuncToolBase):
           "(4) Experiences: experiences (and pitfalls/patterns) gained from the bug and the fix. ",
         ),
       ],
+      [],
     )
 
   def _call(self, *, report: str, **kwargs) -> str:
@@ -767,29 +786,47 @@ def run_opt(
 
 def _get_enabled_skills(
   harness: Harness, enabled: set[str]
-) -> list[tuple[Path, int, Optional[int]]]:
-  return [
-    (sk, MAX_TCS_HEAVYWEIGHT_TOOLS, MAX_TCS_LIGHTWEIGHT_TOOLS)
-    for sk in harness.get_skills()
-    if sk.name in enabled
-  ]
+) -> list[tuple[Path, int, Optional[int]] | tuple[Path, int, Optional[int], bool]]:
+  """Get harness-provided skills filtered by the enabled set.
+
+  Skills in ``DEFERRED_TOOLS`` are returned as 4-tuples ``(sk, budget, None, True)``;
+  the agent uses tool_search to load full specs."""
+  skills: list[
+    tuple[Path, int, Optional[int]] | tuple[Path, int, Optional[int], bool]
+  ] = []
+  for sk in harness.get_skills():
+    if sk.name not in enabled:
+      continue
+    if sk.name in DEFERRED_TOOLS:
+      skills.append((sk, MAX_TCS_HEAVYWEIGHT_TOOLS, MAX_TCS_LIGHTWEIGHT_TOOLS, True))
+    else:
+      skills.append((sk, MAX_TCS_HEAVYWEIGHT_TOOLS, MAX_TCS_LIGHTWEIGHT_TOOLS))
+  return skills
 
 
 def _get_enabled_tools(
   harness: Harness, enabled: set[str]
-) -> list[tuple[FuncToolBase, int]]:
-  """Get harness-provided tools filtered by the enabled set."""
-  tools: list[tuple[FuncToolBase, int]] = []
+) -> list[tuple[FuncToolBase, int] | tuple[FuncToolBase, int, bool]]:
+  """Get harness-provided tools filtered by the enabled set.
+
+  Tools in ``DEFERRED_TOOLS`` are returned as 3-tuples ``(tool, budget, True)``;
+  the registry wraps them and auto-creates ``tool_search``.
+  """
+  tools: list[tuple[FuncToolBase, int] | tuple[FuncToolBase, int, bool]] = []
   for tool in harness.make_tools():
     name = tool.name()
     if name not in enabled:
       continue
     if name in HEAVYWEIGHT_TOOLS:
-      tools.append((tool, MAX_TCS_HEAVYWEIGHT_TOOLS))
+      budget = MAX_TCS_HEAVYWEIGHT_TOOLS
     elif name in LIGHTWEIGHT_TOOLS:
-      tools.append((tool, MAX_TCS_LIGHTWEIGHT_TOOLS))
+      budget = MAX_TCS_LIGHTWEIGHT_TOOLS
     else:
       panic(f"Tool {name} does not have a defined tool call limit.")
+    if name in DEFERRED_TOOLS:
+      tools.append((tool, budget, True))
+    else:
+      tools.append((tool, budget))
   return tools
 
 

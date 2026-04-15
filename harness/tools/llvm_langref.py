@@ -23,6 +23,7 @@ class LangRefTool(StatelessFuncToolBase):
           "Do not include type mangling suffix or operands in the name.",
         ),
       ],
+      keywords=["langref", "semantics", "instruction", "intrinsic", "ir", "reference"],
     )
 
   def _call(self, *, inst: str, **kwargs) -> str:

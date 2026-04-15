@@ -15,7 +15,12 @@ from tenacity import (
 
 from harness.lms.meter import AgentMeter, GlobalMeter, ReachRoundLimit, ReachTokenLimit
 from harness.lms.skill import SkillTool, load_skill
-from harness.lms.tool import FuncToolBase, ToolRegistry
+from harness.lms.tool import (
+  TOOL_SEARCH_NAME,
+  DeferredToolWrapper,
+  FuncToolBase,
+  ToolRegistry,
+)
 from harness.utils.console import get_boxed_console
 
 # ---------------------------------------------------------------------------
@@ -108,32 +113,55 @@ class AgentConfig:
 
   def create_agent(
     self,
-    tools: List[Tuple[FuncToolBase, int]] | None = None,
-    skills: List[Tuple[Path, int, Optional[int]]] | None = None,
+    tools: List[Tuple[FuncToolBase, int] | Tuple[FuncToolBase, int, bool]]
+    | None = None,
+    skills: List[
+      Tuple[Path, int, Optional[int]] | Tuple[Path, int, Optional[int], bool]
+    ]
+    | None = None,
   ) -> AgentBase:
     """Create a fresh agent instance from this configuration.
 
     Optionally register tools and skills in one call::
 
         config.create_agent(
-          tools=[(ReadTool(), 250), (EditTool(), 25)],
-          # The last parameter overrides per-tool budget of the skill
-          skills=[(skill1_path, 10, 250), (skill2_path, 10, None)],
+          tools=[
+            (ReadTool(), 250),           # pre-loaded (default)
+            (EditTool(), 25),
+            (OptTool(), 250, True),      # deferred — stub description
+          ],
+          skills=[
+            (skill1_path, 10, 250),             # pre-loaded (default)
+            (skill2_path, 10, None, True),      # deferred
+          ],
         )
 
     Args:
-      tools: List of (tool, call_budget) to register.
-      skills: List of (skill_path, call_budget, per_tool_budget) to register.
+      tools: List of (tool, call_budget) or (tool, call_budget, deferred)
+        to register. When deferred is True the tool gets a stub description
+        and a ``tool_search`` meta-tool is auto-created.
+      skills: List of (skill_path, call_budget, per_tool_budget) or
+        (skill_path, call_budget, per_tool_budget, deferred) to register.
         call_budget controls how many times the skill itself can be called.
         per_tool_budget overrides the tool-budget property in the skill's
         SKILL.md frontmatter, controlling the per-tool call limit inside the
         skill sub-loop. If per_tool_budget is None, keep the original budget.
     """
     agent = self.driver_class(self)
-    for tool, budget in tools or []:
-      agent.register_tool(tool, budget)
-    for path, budget, tool_budget in skills or []:
-      agent.register_skill(path, budget, tool_budget=tool_budget)
+    for entry in tools or []:
+      if len(entry) == 3:
+        tool, budget, deferred = entry
+        agent.register_tool(tool, budget, deferred=deferred)
+      else:
+        tool, budget = entry
+        agent.register_tool(tool, budget)
+    for entry in skills or []:
+      if len(entry) == 4:
+        path, budget, tool_budget, deferred = entry
+        agent.register_skill(path, budget, tool_budget=tool_budget, deferred=deferred)
+      else:
+        path, budget, tool_budget = entry
+        agent.register_skill(path, budget, tool_budget=tool_budget)
     return agent
 
 
@@ -174,22 +202,32 @@ class AgentBase:
     self.debug_mode = False
     self.console = get_boxed_console(debug_mode=False)
 
-  def register_tool(self, tool: FuncToolBase, budget: Optional[int] = None):
+  def register_tool(
+    self,
+    tool: FuncToolBase,
+    budget: Optional[int] = None,
+    deferred: bool = False,
+  ):
     """Register a tool as callable by the agent.
 
     Args:
       tool: The tool object to register.
       budget: Max number of times this tool can be called before it's
         exhausted. None means unlimited.
+      deferred: If True, the tool is registered with a stub description
+        and a ``tool_search`` meta-tool is automatically created so the
+        agent can discover the full description at runtime.
     """
+    suffix = " [deferred]" if deferred else ""
     self.console.print(
       "Registering tool: "
       + tool.name()
       + " (budget="
       + ToolRegistry.format_budget(budget)
       + ")"
+      + suffix
     )
-    self.tools.register(tool, budget)
+    self.tools.register(tool, budget, deferred=deferred)
     return tool.name()
 
   def register_skill(
@@ -197,6 +235,7 @@ class AgentBase:
     path: Path,
     budget: Optional[int] = None,
     tool_budget: Optional[int] = None,
+    deferred: bool = False,
   ) -> str:
     """Register a skill from a SKILL.md file as a callable tool.
 
@@ -207,18 +246,22 @@ class AgentBase:
       tool_budget: If set, overrides the ``tool-budget`` property in
         the skill's SKILL.md frontmatter, controlling the per-tool call
         limit inside the skill sub-loop.
+      deferred: If True, the skill is registered with a stub description
+        and discoverable via ``tool_search``.
     """
+    suffix = " [deferred]" if deferred else ""
     self.console.print(
       "Registering skill: "
       + path.name
       + " (budget="
       + ToolRegistry.format_budget(budget)
       + ")"
+      + suffix
     )
     skill = load_skill(path)
     if tool_budget is not None:
       skill.budget = tool_budget
-    self.register_tool(SkillTool(skill, self), budget)
+    self.register_tool(SkillTool(skill, self), budget, deferred=deferred)
     return skill.name
 
   @abstractmethod
@@ -268,7 +311,7 @@ class AgentBase:
   def perform_tool_call(self, tool_name: str, tool_args: dict) -> str:
     MAX_TOOL_CALL_OUTPUT_LINES = 500
     MAX_TOOL_CALL_OUTPUT_CHARS = 15000
-    res = self.tools.call(tool_name, **tool_args)
+    res = self.tools.call(tool_name, tool_args)
     lines = res.splitlines()
     if len(lines) > MAX_TOOL_CALL_OUTPUT_LINES or len(res) > MAX_TOOL_CALL_OUTPUT_CHARS:
       fd, path = tempfile.mkstemp(suffix=".txt", prefix=f"toolcall_{tool_name}_")
@@ -320,23 +363,32 @@ class AgentBase:
     if context_aware:
       sub.history = self.history.copy()
 
-    # Register tools for the sub-agent
-    def _fresh_for_sub(name: str) -> FuncToolBase:
+    # Register tools for the sub-agent.  Deferred tools are re-registered
+    # with deferred=True so the sub-agent gets its own tool_search.  The
+    # parent's tool_search is skipped — the sub-agent's registry creates
+    # a fresh one automatically.
+
+    def _register_for_sub(name: str):
       tool_obj = self.tools.get(name)
+      is_deferred = isinstance(tool_obj, DeferredToolWrapper)
       if isinstance(tool_obj, SkillTool):
-        return tool_obj.for_agent(sub)
-      return tool_obj.fresh()
+        fresh_tool = tool_obj.for_agent(sub)
+      else:
+        fresh_tool = tool_obj.fresh()
+      sub.register_tool(fresh_tool, tool_budget, deferred=is_deferred)
 
     if not tool_names:
       for name in self.tools.list():
-        if name == skill_name:
-          continue
-        sub.register_tool(_fresh_for_sub(name), tool_budget)
+        if name == skill_name or name == TOOL_SEARCH_NAME:
+          continue  # Avoid registering the skill recursively or tool_search (auto-created)
+        _register_for_sub(name)
     else:
       missing_tools = []
       for name in tool_names:
+        if name == TOOL_SEARCH_NAME:
+          continue  # tool_search is auto-created
         if self.tools.has(name):
-          sub.register_tool(_fresh_for_sub(name), tool_budget)
+          _register_for_sub(name)
         else:
           missing_tools.append(name)
       if missing_tools:

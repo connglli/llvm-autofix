@@ -34,6 +34,7 @@ class ExecuteIrTool(LlvmBuildDirMixin, StatelessFuncToolBase):
           "Example: '-jit-kind=mcjit'.",
         ),
       ],
+      keywords=["lli", "execute", "run", "jit", "ir", "runtime"],
     )
 
   def _call(self, *, input_path: str, args: str = "", **kwargs) -> str:

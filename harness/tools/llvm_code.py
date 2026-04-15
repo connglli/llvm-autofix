@@ -18,6 +18,7 @@ class CodeTool(StatelessFuncToolBase):
       "Retrieve the full source code of an LLVM C++ function by name, using the debugger to resolve its location. "
       "Use this to read a pass function, utility, or IR builder method without manually searching for it.",
       [FuncToolSpec.Param("func", "string", True, "Name of the function")],
+      keywords=["source", "code", "function", "cpp", "definition"],
     )
 
   def _call(self, *, func: str, **kwargs) -> str:

@@ -22,6 +22,7 @@ class EditTool(StatelessFuncToolBase):
         ),
         FuncToolSpec.Param("new", "string", True, "The new code snippet."),
       ],
+      keywords=["edit", "replace", "modify", "snippet", "code"],
     )
 
   def _call(self, *, file: str, old: str, new: str, **kwargs) -> str:

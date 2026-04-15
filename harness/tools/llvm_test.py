@@ -30,6 +30,7 @@ class TestTool(StatelessFuncToolBase):
       "Use this when you believe your patch is ready — it rebuilds and runs the full test suite, so it is expensive. "
       "Check the output carefully: a failure means the patch is incorrect or introduces regressions.",
       [],
+      keywords=["test", "regression", "lit", "check"],
     )
 
   def is_valid_patches(self, patches: PatchSet) -> Tuple[bool, Optional[str]]:

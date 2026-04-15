@@ -46,6 +46,7 @@ class VerifyIrTool(StatelessFuncToolBase):
           "Recommended: '--disable-undef-input --smt-to=60000'.",
         ),
       ],
+      keywords=["alive2", "alive", "verify", "smt", "refinement", "correctness", "ir"],
     )
 
   def _call(self, *, src_path: str, tgt_path: str, args: str = "", **kwargs) -> str:

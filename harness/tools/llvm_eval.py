@@ -20,6 +20,7 @@ class EvalTool(StatelessFuncToolBase):
           "The expression that you'd like to evaluate and obtain its value",
         ),
       ],
+      keywords=["gdb", "debugger", "evaluate", "expression", "variable", "cpp"],
     )
 
   def _call(self, *, expr: str, **kwargs) -> str:

@@ -64,6 +64,7 @@ class BashTool(StatelessFuncToolBase):
           "Optional timeout in seconds for the command execution. Default is 60 seconds.",
         ),
       ],
+      keywords=["shell", "command", "terminal", "execute"],
     )
 
   def _call(

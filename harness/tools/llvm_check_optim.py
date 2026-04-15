@@ -51,6 +51,14 @@ class CheckOptimTool(LlvmBuildDirMixin, StatelessFuncToolBase):
           "Use this if llubi crashes or has issues.",
         ),
       ],
+      keywords=[
+        "miscompile",
+        "miscompilation",
+        "differential",
+        "execution",
+        "compare",
+        "opt",
+      ],
     )
 
   def _check(self, **kwargs):

@@ -14,6 +14,7 @@ class BuildTool(StatelessFuncToolBase):
       "that depend on the build (e.g., llvm_optimize_ir, llvm_compile_ir, llvm_execute_ir). "
       "Returns whether the build succeeded and the build log.",
       [],
+      keywords=["build", "cmake", "ninja", "compile"],
     )
 
   def _call(self, **kwargs) -> str:

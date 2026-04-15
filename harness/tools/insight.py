@@ -358,6 +358,7 @@ class InsightTool(StatelessFuncToolBase):
           "(default: 10).",
         ),
       ],
+      keywords=["insight", "knowledge", "store", "persistent", "llvm"],
     )
 
   def _call(

@@ -50,6 +50,15 @@ class VerifyOptimTool(LlvmBuildDirMixin, StatelessFuncToolBase):
           "Recommended: '--disable-undef-input --smt-to=60000'.",
         ),
       ],
+      keywords=[
+        "alive2",
+        "verify",
+        "optimization",
+        "smt",
+        "refinement",
+        "opt",
+        "correctness",
+      ],
     )
 
   def _optimize(self, ir_path: Path, args: str, output_path: Path) -> None:

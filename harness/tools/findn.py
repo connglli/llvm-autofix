@@ -28,6 +28,7 @@ class FindNTool(StatelessFuncToolBase):
           "The absolute path to the directory to search in.",
         ),
       ],
+      keywords=["find", "glob", "pattern", "search", "files"],
     )
 
   def _call(self, *, k: int, pattern: str, directory: str, **kwargs) -> str:

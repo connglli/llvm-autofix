@@ -34,6 +34,7 @@ class RipgrepNTool(StatelessFuncToolBase):
           "The absolute path to the base directory to search in.",
         ),
       ],
+      keywords=["search", "grep", "regex", "pattern", "content"],
     )
 
   def _call(self, *, k: int, args: str, directory: str, **kwargs) -> str:

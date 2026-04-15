@@ -35,6 +35,7 @@ class OptimizeIrTool(LlvmBuildDirMixin, StatelessFuncToolBase):
           "Example: '-S -passes=instcombine' or '-S -passes=instcombine -o /tmp/output.ll'.",
         ),
       ],
+      keywords=["opt", "transform", "pass", "optimization", "ir"],
     )
 
   def _call(self, *, input_path: str, args: str, **kwargs) -> str:
