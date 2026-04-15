@@ -181,7 +181,7 @@ class Harness:
     name = preset or DEFAULT_ACL_PRESET
     editable, readable, ignored = _ACL_PRESETS[name]()
     build_dir = str(Path(llvm_ops.get_llvm_build_dir()).resolve())
-    skills_dir = str(Path(harness.require_home_dir()) / "skills")
+    skills_dir = str(Path(harness.require_home_dir()) / "harness" / "skills")
     return AccessControl(
       editable=editable + [build_dir] + (extra_editable or []),
       readable=readable + [build_dir, skills_dir] + (extra_readable or []),
