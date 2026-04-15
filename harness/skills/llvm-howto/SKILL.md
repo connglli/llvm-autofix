@@ -43,6 +43,7 @@ Run `ls bin/` in the build directory to see every available binary.
 | `opt` | Run optimization passes on LLVM IR | `opt -passes=instcombine -S input.ll` |
 | `llc` | Compile IR to target assembly or object code | `llc -O2 input.ll -o output.s` |
 | `lli` | Interpret or JIT-compile and run IR | `lli input.ll` |
+| `llubi` | Interpret run IR strictly following LLVM IR's semantics | `llubi input.ll` |
 | `llvm-lit` | Run LLVM regression tests | `llvm-lit -sv llvm/test/Transforms/InstCombine` |
 | `llvm-dis` | Disassemble bitcode (.bc) to human-readable IR (.ll) | `llvm-dis input.bc -o output.ll` |
 | `llvm-as` | Assemble human-readable IR (.ll) to bitcode (.bc) | `llvm-as input.ll -o output.bc` |

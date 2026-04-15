@@ -36,7 +36,8 @@ class InterpretIrTool(LlvmBuildDirMixin, StatelessFuncToolBase):
           False,
           "Optional arguments passed to lli before the input file. "
           "Example: '--entry-function==test' to specify the entry function to interpret. "
-          "By default, the entry function is 'main'.",
+          "By default, the entry function is 'main'. "
+          "Example: '--verbose' to print intermediate results for each instruction executed.",
         ),
       ],
     )
