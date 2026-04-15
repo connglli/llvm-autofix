@@ -26,8 +26,10 @@ fi
 
 
 #-================================
-# LLVM
+# LLVM: Preprocessing
 #-================================
+
+# llvm
 
 mkdir ${DEP_LLVM_DIR}
 git clone https://github.com/llvm/llvm-project ${DEP_LLVM_SOURCE_DIR}
@@ -43,6 +45,15 @@ cmake -S ${DEP_LLVM_SOURCE_DIR}/llvm -B ${DEP_LLVM_BUILD_DIR} -G Ninja \
   -DLLVM_ENABLE_PROJECTS="llvm;clang"
 ninja -C ${DEP_LLVM_BUILD_DIR}
 sudo ninja -C ${DEP_LLVM_BUILD_DIR} install
+
+# ccache
+
+mkdir -p ${DEP_CCACHE_DIR}
+wget https://github.com/ccache/ccache/releases/download/v${DEP_CCACHE_VERSION}/ccache-${DEP_CCACHE_VERSION}.tar.gz -O ${DEP_CCACHE_DIR}/ccache-${DEP_CCACHE_VERSION}.tar.gz
+tar -xavf ${DEP_CCACHE_DIR}/ccache-${DEP_CCACHE_VERSION}.tar.gz --directory ${DEP_CCACHE_DIR}
+cmake -S ${DEP_CCACHE_SOURCE_DIR} -B ${DEP_CCACHE_BUILD_DIR} -G Ninja -DCMAKE_BUILD_TYPE=Release
+ninja -C ${DEP_CCACHE_BUILD_DIR}
+sudo ninja -C ${DEP_CCACHE_BUILD_DIR} install
 
 #-================================
 # alive2
@@ -78,14 +89,12 @@ cmake -S ${DEP_ALIVE2_SOURCE_DIR} -B ${DEP_ALIVE2_BUILD_DIR} -G Ninja -DCMAKE_BU
 ninja -C ${DEP_ALIVE2_BUILD_DIR}
 sudo ninja -C ${DEP_ALIVE2_BUILD_DIR} install
 
-# ccache
+#-================================
+# LLVM: Postprocessing
+#-================================
 
-mkdir -p ${DEP_CCACHE_DIR}
-wget https://github.com/ccache/ccache/releases/download/v${DEP_CCACHE_VERSION}/ccache-${DEP_CCACHE_VERSION}.tar.gz -O ${DEP_CCACHE_DIR}/ccache-${DEP_CCACHE_VERSION}.tar.gz
-tar -xavf ${DEP_CCACHE_DIR}/ccache-${DEP_CCACHE_VERSION}.tar.gz --directory ${DEP_CCACHE_DIR}
-cmake -S ${DEP_CCACHE_SOURCE_DIR} -B ${DEP_CCACHE_BUILD_DIR} -G Ninja -DCMAKE_BUILD_TYPE=Release
-ninja -C ${DEP_CCACHE_BUILD_DIR}
-sudo ninja -C ${DEP_CCACHE_BUILD_DIR} install
+# Pull the latest commits to make sure the repo is up-to-date.
+git -C ${DEP_LLVM_SOURCE_DIR} pull origin main
 
 #-================================
 # Python dependencies
@@ -105,8 +114,8 @@ ${PYTHON3} -m venv ${DEP_PY3_VENV_DIR}
 #-================================
 
 rm -rf ${DEP_LLVM_BUILD_DIR} \
+  ${DEP_CCACHE_DIR} \
   ${DEP_Z3_DIR} \
   ${DEP_RE2C_DIR} \
-  ${DEP_ALIVE2_DIR} \
-  ${DEP_CCACHE_DIR}
+  ${DEP_ALIVE2_DIR}
 git -C ${DEP_LLVM_SOURCE_DIR} checkout main
