@@ -591,7 +591,8 @@ class Harness:
     Tools are gated by available dependencies:
 
     * Always (llvm_dir): read, list, find, ripgrep, edit, write, bash, insight
-    * build_dir present: llvm_optimize_ir, llvm_compile_ir, llvm_execute_ir, llvm_interpret_ir, llvm_verify_ir, llvm_check_optim
+    * build_dir present: llvm_optimize_ir, llvm_compile_ir, llvm_execute_ir, llvm_interpret_ir, llvm_check_optim
+    # alive2 present: llvm_verify_ir, llvm_verify_optim
     * fixenv present (bench issue): llvm_build, llvm_test, llvm_reset, llvm_preview_patch
     * debugger attached: llvm_code, llvm_docs, llvm_debug, llvm_eval_expr, llvm_langref
     """
@@ -636,9 +637,12 @@ class Harness:
     tools.append(InterpretIrTool(build_dir))
     tools.append(CheckOptimTool(build_dir))
 
+    # -- Alive2-based verification tools (require alive-tv) --
     from harness.tools.llvm_alive2 import VerifyIrTool
+    from harness.tools.llvm_verify_optim import VerifyOptimTool
 
     tools.append(VerifyIrTool(self.alive_tv_path))
+    tools.append(VerifyOptimTool(build_dir, str(self.alive_tv_path)))
 
     # -- Env-dependent tools (bench issue) --
     if self.fixenv is not None:

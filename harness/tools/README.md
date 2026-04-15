@@ -123,7 +123,7 @@ class MyLlvmTool(LlvmBuildDirMixin, StatelessFuncToolBase):
 | Dependency | Tools |
 |---|---|
 | Always | `read`, `list`, `find`, `ripgrep`, `edit`, `write`, `bash`, `insight`, `llvm_optimize_ir`, `llvm_compile_ir`, `llvm_execute_ir`, `llvm_interpret_ir`, `llvm_check_optim` |
-| alive-tv | `llvm_verify_ir` |
+| alive-tv | `llvm_verify_ir`, `llvm_verify_optim` |
 | fixenv | `llvm_build`, `llvm_test`, `llvm_reset`, `llvm_preview_patch` |
 | debugger | `llvm_code`, `llvm_docs`, `llvm_debug`, `llvm_eval_expr`, `llvm_langref` |
 
