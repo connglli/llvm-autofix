@@ -1,23 +1,35 @@
+"""Subprocess utilities with proper process-group cleanup on timeout.
+
+The standard ``subprocess.run`` only sends SIGTERM to the top-level process
+when a timeout expires, leaving child processes orphaned.  The functions here
+run each command in its own process group (``start_new_session=True``) and
+send SIGKILL to the entire group on timeout or interrupt.
+"""
+
 import os
 import shlex
 import signal
 import subprocess
 
 
-def safe_killpg(pid, sig):
+def safe_killpg(pid: int, sig: int):
+  """Send *sig* to the process group *pid*, ignoring already-exited groups."""
   try:
     os.killpg(pid, sig)
   except ProcessLookupError:
-    pass  # Ignore if there is no such process
+    pass  # Ignore if there is no such proces
 
 
 def spawn_process(
   cmd, stdout, stderr, timeout, **kwargs
 ) -> subprocess.CompletedProcess:
-  # Fix: subprocess.run(cmd) series methods, when timed out, only send a SIGTERM
-  # signal to cmd while does not kill cmd's subprocess. We let each command run
-  # in a new process group by adding start_new_session flag, and kill the whole
-  # process group such that all cmd's subprocesses are also killed when timed out.
+  """Run *cmd* in a new process group and wait up to *timeout* seconds.
+
+  On timeout or interrupt the **entire** process group is killed via SIGKILL,
+  ensuring no child processes are leaked.
+
+  Returns a :class:`subprocess.CompletedProcess` with captured output.
+  """
   with subprocess.Popen(
     cmd, stdout=stdout, stderr=stderr, start_new_session=True, **kwargs
   ) as proc:
@@ -32,6 +44,7 @@ def spawn_process(
 
 
 def check_call(cmd: str, timeout: int = 60, **kwargs):
+  """Run *cmd* (shell string) and raise on non-zero exit code."""
   proc = spawn_process(
     shlex.split(cmd),
     stdout=subprocess.PIPE,
@@ -42,7 +55,12 @@ def check_call(cmd: str, timeout: int = 60, **kwargs):
   proc.check_returncode()
 
 
-def getoutput(cmd: str, timeout: int = 60, check=True, **kwargs):
+def getoutput(cmd: str, timeout: int = 60, check=True, **kwargs) -> bytes:
+  """Run *cmd* and return its combined stdout+stderr as bytes.
+
+  Raises :class:`subprocess.CalledProcessError` if *check* is True and
+  the command exits with a non-zero code.
+  """
   proc = spawn_process(
     shlex.split(cmd),
     stdout=subprocess.PIPE,
@@ -55,7 +73,13 @@ def getoutput(cmd: str, timeout: int = 60, check=True, **kwargs):
   return proc.stdout
 
 
-def redirect_stdout(cmd: str, stdout: str, timeout: int = 60, check=True, **kwargs):
+def redirect_stdout(
+  cmd: str, stdout: str, timeout: int = 60, check=True, **kwargs
+) -> bytes:
+  """Run *cmd*, writing stdout to the file at *stdout* path.
+
+  Returns the captured stderr as bytes.
+  """
   with open(stdout, "w") as fou:
     proc = spawn_process(
       shlex.split(cmd),
@@ -69,5 +93,6 @@ def redirect_stdout(cmd: str, stdout: str, timeout: int = 60, check=True, **kwar
   return proc.stderr
 
 
-def check_output(cmd: str, timeout: int = 60, **kwargs):
+def check_output(cmd: str, timeout: int = 60, **kwargs) -> bytes:
+  """Run *cmd* and return stdout+stderr; raise on non-zero exit."""
   return getoutput(cmd, timeout, check=True, **kwargs)

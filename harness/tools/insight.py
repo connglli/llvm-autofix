@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import math
 import re
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
@@ -11,6 +10,8 @@ from harness.lms.tool import (
   FuncToolSpec,
   StatelessFuncToolBase,
 )
+from harness.utils.bm25 import BM25Index
+from harness.utils.text import either_contains, extract_keywords, tokenize_query
 
 # Maximum lines per scope file before warning the agent to split/summarize.
 _MAX_SCOPE_LINES = 200
@@ -68,99 +69,10 @@ def _update_frontmatter_date(text: str) -> str:
   )
 
 
-def _extract_keywords(text: str, max_keywords: int = 8) -> list[str]:
-  """Extract simple keywords from *text* for dedup checking."""
-  # Strip markdown formatting and common stop words.
-  # TODO: Use a more robust NLP approach
-  stop = {
-    "the",
-    "a",
-    "an",
-    "is",
-    "are",
-    "was",
-    "were",
-    "be",
-    "been",
-    "being",
-    "have",
-    "has",
-    "had",
-    "do",
-    "does",
-    "did",
-    "will",
-    "would",
-    "could",
-    "should",
-    "may",
-    "might",
-    "shall",
-    "can",
-    "to",
-    "of",
-    "in",
-    "for",
-    "on",
-    "with",
-    "at",
-    "by",
-    "from",
-    "as",
-    "into",
-    "through",
-    "during",
-    "before",
-    "after",
-    "it",
-    "its",
-    "this",
-    "that",
-    "these",
-    "those",
-    "and",
-    "but",
-    "or",
-    "not",
-    "if",
-    "when",
-    "then",
-    "than",
-    "so",
-    "no",
-    "all",
-    "each",
-    "every",
-    "both",
-    "few",
-    "more",
-    "most",
-    "other",
-    "some",
-    "such",
-    "only",
-    "same",
-    "also",
-    "just",
-    "because",
-    "about",
-  }
-  words = re.findall(r"[A-Za-z_][A-Za-z0-9_]+", text)
-  seen = set()
-  keywords = []
-  for w in words:
-    low = w.lower()
-    if low not in stop and low not in seen and len(low) > 2:
-      seen.add(low)
-      keywords.append(w)
-      if len(keywords) >= max_keywords:
-        break
-  return keywords
-
-
-def _term_matches(query_term: str, keyword: str) -> bool:
-  """Bidirectional substring match (both sides already lowercase)."""
-  return query_term in keyword or keyword in query_term
+# Aliases for backward compatibility with tests
+_extract_keywords = extract_keywords
+_term_matches = either_contains
+_tokenize_query = tokenize_query
 
 
 def _iter_scope_files(base_dir: Path, search_dir: Path) -> list[tuple[Path, str]]:
@@ -219,61 +131,43 @@ def _collect_all_entries(base_dir: Path, scope: str | None) -> list[_InsightEntr
   return entries
 
 
-def _tokenize_query(query: str) -> list[str]:
-  """Tokenize a search query into lowercase terms."""
-  return [
-    w.lower() for w in re.findall(r"[A-Za-z_][A-Za-z0-9_-]*", query) if len(w) > 1
-  ]
-
-
-def _bm25_score(
+def _bm25_rank(
   query_terms: list[str],
   entries: list[_InsightEntry],
-  *,
-  k1: float = 1.5,
-  b: float = 0.75,
 ) -> list[_InsightEntry]:
-  """Score entries against query terms using BM25 over the keywords field.
+  """Rank entries by BM25 over their keywords using the shared BM25Index.
 
-  Each entry's keywords list is the "document". The query terms are matched
-  against it. Entries with no keywords get a small body-text fallback score.
+  Entries with no keywords get a small body-text fallback score.
   """
   if not entries or not query_terms:
     return []
 
-  n = len(entries)
-  avg_dl = sum(len(e.keywords) for e in entries) / max(n, 1) or 1.0
+  # Build a BM25 index from entries' keyword lists (pre-tokenized).
+  corpus: dict[str, list[str]] = {}
+  entry_map: dict[str, _InsightEntry] = {}
+  for i, entry in enumerate(entries):
+    key = f"{i}"
+    corpus[key] = [kw.lower() for kw in entry.keywords]
+    entry_map[key] = entry
 
-  # Single pass: compute per-entry tf maps and global df simultaneously.
-  df: dict[str, int] = {}
-  entry_tf: list[dict[str, int]] = []
-  for entry in entries:
-    tf_map: dict[str, int] = {}
-    for kw in entry.keywords:
-      for qt in query_terms:
-        if _term_matches(qt, kw):
-          tf_map[qt] = tf_map.get(qt, 0) + 1
-    for qt in tf_map:
-      df[qt] = df.get(qt, 0) + 1
-    entry_tf.append(tf_map)
+  index = BM25Index(corpus, match_fn=_term_matches)
+  results = index.query(query_terms, top_k=len(entries))
 
-  for entry, tf_map in zip(entries, entry_tf):
-    score = 0.0
-    dl = len(entry.keywords) or 1
-    for qt in query_terms:
-      tf = tf_map.get(qt, 0)
-      if tf == 0:
-        continue
-      idf = math.log((n - df.get(qt, 0) + 0.5) / (df.get(qt, 0) + 0.5) + 1.0)
-      tf_norm = (tf * (k1 + 1)) / (tf + k1 * (1 - b + b * dl / avg_dl))
-      score += idf * tf_norm
-    if score == 0.0 and not entry.keywords:
+  scored_keys = set()
+  for key, score in results:
+    entry_map[key].score = score
+    scored_keys.add(key)
+
+  # Body-text fallback for entries with no keywords
+  for key, entry in entry_map.items():
+    if key not in scored_keys and not entry.keywords:
       body_lower = entry.body.lower()
       body_hits = sum(1 for qt in query_terms if qt in body_lower)
-      score = body_hits * 0.1
-    entry.score = score
+      if body_hits > 0:
+        entry.score = body_hits * 0.1
+        scored_keys.add(key)
 
-  return sorted([e for e in entries if e.score > 0], key=lambda e: -e.score)
+  return sorted([entry_map[k] for k in scored_keys], key=lambda e: -e.score)
 
 
 class InsightTool(StatelessFuncToolBase):
@@ -541,7 +435,7 @@ class InsightTool(StatelessFuncToolBase):
       return f"No insights found in scope: {scope or '(all)'}"
 
     # Score and rank entries by BM25 over their keywords.
-    ranked = _bm25_score(query_terms, entries)
+    ranked = _bm25_rank(query_terms, entries)
     if not ranked:
       return f"No insights found matching: {query}"
 
