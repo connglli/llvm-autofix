@@ -1,4 +1,6 @@
-# llvm-harness
+<p align="center" style="margin-top: 0; margin-bottom: 0;">
+  <img src="docs/llvm-harness-color-1024-768.svg" alt="Hermes Agent" width="75%">
+</p>
 
 llvm-harness is an agentic harness of [LLVM](https://github.com/llvm/llvm-project). Its current focus is automatic repair of LLVM bugs and systematic evaluation of agents' ability to resolve LLVM issues. **Longer term, it aims to become an off‑the‑shelf agentic harness for all LLVM tasks that benefit from an agent**. It includes:
 
@@ -9,6 +11,7 @@ llvm-harness is an agentic harness of [LLVM](https://github.com/llvm/llvm-projec
 
 ## 🔥 News
 
+- 2026-04-16: The project was renamed to `llvm-harness`.
 - 2026-04-03: We started refactoring of the project and plan to rename it to `llvm-harness`.
 - 2026-03-20: We released `llvm-autofix`, an agentic harness for real-world compilers.
 
@@ -87,3 +90,8 @@ If you found this work helpful, please consider citing our work:
 ```
 
 Artifacts for the arXiv paper are available at the [experiment](https://github.com/dtcxzyw/llvm-autofix/tree/experiment) branch.
+
+## 🤝 Acknowledgements
+
+1. The logo was co-design with Nano Banana.
+2. This project is partially supported by an award from the Hasler Fundation.
