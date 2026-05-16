@@ -227,7 +227,12 @@ def _run_autofix(entry: Entry, *, driver: str, model: str, debug: bool, log=prin
         ) from e
       log("reproduced; handing off to agent")
 
-      stats.patch = autofix(rep=rep, harness=h, aconf=aconf, stats=stats)
+      try:
+        stats.patch = autofix(rep=rep, harness=h, aconf=aconf, stats=stats)
+      except Exception as e:
+        raise RuntimeError(f"agent failed running: {e}") from e
+
+      log("agent finished; validating patch ...")
       if not stats.patch:
         raise NoAvailablePatchFound("agent finished without producing a patch")
 
