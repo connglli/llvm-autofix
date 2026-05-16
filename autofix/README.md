@@ -111,13 +111,20 @@ python -m autofix.ghbot serve --once --model gpt-5
 # Inspect the on-disk queue
 python -m autofix.ghbot queue --list
 
-# Drop an entry by GitHub comment ID; also clears our 👀 reaction so
-# the comment can be re-picked up by a later mention.
-python -m autofix.ghbot queue --remove <comment-id>
+# Drop one or more entries by GitHub comment ID; clears our 👀 reaction
+# on each so the comment can be re-picked up by a later mention.
+python -m autofix.ghbot queue --remove <id> [<id> ...]
+
+# Bulk removal — pick one. Each refuses entries in the `running` state.
+python -m autofix.ghbot queue --remove-all       # everything not in-flight
+python -m autofix.ghbot queue --remove-pending   # awaiting processing
+python -m autofix.ghbot queue --remove-done      # already replied with a patch
+python -m autofix.ghbot queue --remove-failed    # errored or hit the attempt cap
 ```
 
 `serve` accepts the same `--model` / `--driver` / `--debug` flags as
-`mini`. `--poll` and `--once` are mutually exclusive.
+`mini`. `--poll` and `--once` are mutually exclusive. The six `queue`
+mode flags above are mutually exclusive too.
 
 ### Configuration
 

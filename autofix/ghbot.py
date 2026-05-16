@@ -86,7 +86,10 @@ try:
     swap_reaction,
   )
   from autofix.ghbot_queue import (
+    STATUS_DONE,
+    STATUS_FAILED,
     STATUS_PENDING,
+    STATUS_RUNNING,
     Entry,
     Queue,
     utcnow_iso,
@@ -363,34 +366,85 @@ def cmd_serve(args) -> int:
     time.sleep(args.poll_interval)
 
 
+def _batch_remove(queue: Queue, ids: List[int]) -> List[Entry]:
+  """Best-effort batch removal — skip missing or running entries with a
+  printed warning, return the list of entries actually removed.
+
+  Caller is responsible for ``queue.save()`` and for clearing the 👀
+  reactions on GitHub for the returned entries.
+  """
+  removed: List[Entry] = []
+  for cid in ids:
+    entry = queue.find(cid)
+    if entry is None:
+      print(f"skip {cid}: not in queue")
+      continue
+    try:
+      queue.remove(cid)
+    except RuntimeError as e:
+      print(f"skip {cid}: {e}")
+      continue
+    removed.append(entry)
+  return removed
+
+
+def _clear_reactions(removed: List[Entry], *, log=print) -> None:
+  """Clear our 👀 reaction on each removed entry's mention so a future
+  re-mention can re-pick it up. Best-effort — a failure here doesn't undo
+  the local removal."""
+  if not removed:
+    return
+  _require_env(*_GH_APP_ENV)
+  try:
+    gh, repo = make_installation_client()
+  except Exception as e:
+    log(f"removed locally; could not authenticate to clear reactions: {e}")
+    return
+  for entry in removed:
+    try:
+      comment = repo.get_issue(entry.issue_number).get_comment(entry.id)
+      remove_our_reaction(comment, REACTION_PICKED_UP, ghbot_configs.BOT_LOGIN)
+    except Exception as e:
+      log(f"removed #{entry.id} locally; could not clear reaction on GitHub: {e}")
+
+
+def _ids_to_remove(args, queue: Queue) -> List[int]:
+  """Translate the chosen `queue --remove*` flag into a list of comment IDs.
+
+  Status-keyed flags only return entries with a matching status; ``running``
+  entries are always excluded since :meth:`Queue.remove` refuses them
+  anyway (and a `--remove-all` that wipes an in-flight job would corrupt
+  the serve loop's view of the world).
+  """
+  if args.remove is not None:
+    return list(args.remove)
+  if args.remove_all:
+    return [e.id for e in queue.entries if e.status != STATUS_RUNNING]
+  for flag, status in (
+    ("remove_pending", STATUS_PENDING),
+    ("remove_done", STATUS_DONE),
+    ("remove_failed", STATUS_FAILED),
+  ):
+    if getattr(args, flag):
+      return [e.id for e in queue.entries if e.status == status]
+  return []
+
+
 def cmd_queue(args) -> int:
   queue = Queue.load()
   if args.list:
     print(queue.render_table())
     return 0
-  if args.remove is not None:
-    entry = queue.find(args.remove)
-    if entry is None:
-      print(f"no queue entry with id {args.remove}", flush=True)
-      return 1
-    try:
-      queue.remove(args.remove)
-    except RuntimeError as e:
-      print(f"refused: {e}")
-      return 1
-    queue.save()
-    # Best-effort: clear our 👀 reaction so future mentions can re-pick up.
-    _require_env(*_GH_APP_ENV)
-    try:
-      gh, repo = make_installation_client()
-      comment = repo.get_issue(entry.issue_number).get_comment(entry.id)
-      remove_our_reaction(comment, REACTION_PICKED_UP, ghbot_configs.BOT_LOGIN)
-    except Exception as e:
-      print(f"removed locally; could not clear reaction on GitHub: {e}")
-    print(f"removed entry #{entry.id}")
+  ids = _ids_to_remove(args, queue)
+  if not ids:
+    print("no matching entries to remove")
     return 0
-  print("specify --list or --remove <id>")
-  return 2
+  removed = _batch_remove(queue, ids)
+  if removed:
+    queue.save()
+  _clear_reactions(removed)
+  print(f"removed {len(removed)} entr{'y' if len(removed) == 1 else 'ies'}")
+  return 0 if removed else 1
 
 
 # ---------------------------------------------------------------------------
@@ -452,9 +506,34 @@ def main(argv: Optional[List[str]] = None) -> int:
   qmode.add_argument(
     "--remove",
     type=int,
+    nargs="+",
     metavar="COMMENT_ID",
     default=None,
-    help="Remove the entry with the given GitHub comment ID.",
+    help="Remove one or more entries by GitHub comment ID.",
+  )
+  qmode.add_argument(
+    "--remove-all",
+    action="store_true",
+    default=False,
+    help="Remove every entry that isn't currently running.",
+  )
+  qmode.add_argument(
+    "--remove-pending",
+    action="store_true",
+    default=False,
+    help="Remove every pending entry (mention enqueued but not yet processed).",
+  )
+  qmode.add_argument(
+    "--remove-done",
+    action="store_true",
+    default=False,
+    help="Remove every successfully processed entry.",
+  )
+  qmode.add_argument(
+    "--remove-failed",
+    action="store_true",
+    default=False,
+    help="Remove every failed entry (errored or hit the attempt cap).",
   )
   q.set_defaults(func=cmd_queue)
 
