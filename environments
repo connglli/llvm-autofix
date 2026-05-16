@@ -1,2 +1,31 @@
-export LLVM_HARNESS_LM_API_ENDPOINT=https://api.openai.com/v1 # Please fill out
-export LLVM_HARNESS_LM_API_KEY=sk-                            # Please fill out
+# Environment variables consumed by the harness. Fill out this file before
+# invoking any `autofix.*` entry point. `buildscripts/upenv.sh` sources this
+# file automatically.
+
+# ---------------------------------------------------------------------------
+# LLM API (required by `autofix.mini`, `autofix.ghbot`, `autofix.xcli`,
+# `autofix.mswe`).
+# ---------------------------------------------------------------------------
+
+# OpenAI-compatible endpoint. The default points at the public OpenAI API;
+# change it for a self-hosted proxy or another vendor's OpenAI-compatible
+# endpoint. Both the `openai` and `anthropic` drivers read this var.
+export LLVM_HARNESS_LM_API_ENDPOINT=https://api.openai.com/v1  # Please fill out
+
+# API key for the endpoint above. For OpenAI this is your `sk-...` key; for
+# self-hosted gateways it is whatever bearer token the gateway expects.
+export LLVM_HARNESS_LM_API_KEY=sk-                             # Please fill out
+
+# ---------------------------------------------------------------------------
+# GitHub App credentials (required by `autofix.ghbot serve` and by
+# `autofix.ghbot queue --remove`; ignored by the rest of the harness).
+#
+# Register the App at https://github.com/settings/apps with:
+#   * Permission: Issues — Read & write
+#   * Permission: Metadata — Read
+# Install it on `dtcxzyw/llvm-autoreduce`, then point the two vars below at
+# the numeric App ID and the path to the App's downloaded `.pem` private key.
+# ---------------------------------------------------------------------------
+
+# export LLVM_AUTOFIX_GH_APP_ID=000000                          # Please fill out
+# export LLVM_AUTOFIX_GH_PRIVATE_KEY_PATH=/path/to/app.pem      # Please fill out
