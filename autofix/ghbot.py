@@ -2,7 +2,7 @@
 
 Two subcommands:
 
-* ``serve --poll-interval N`` — long-running poll loop.
+* ``serve --poll N``          — long-running poll loop.
 * ``serve --once``            — single tick (scan + drain), useful for cron.
 * ``queue --list``            — show the current processing queue.
 * ``queue --remove <id>``     — drop an entry by GitHub comment ID and clear
@@ -471,9 +471,9 @@ def main(argv: Optional[List[str]] = None) -> int:
   mode.add_argument(
     "--poll",
     type=int,
-    default=None,
+    default=60,
     dest="poll_interval",
-    help="Loop forever, sleeping this many seconds between ticks.",
+    help="Loop forever, sleeping this many seconds between ticks (default: 60).",
   )
   mode.add_argument(
     "--once",
