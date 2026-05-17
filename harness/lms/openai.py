@@ -104,7 +104,7 @@ class GPTAgent(AgentBase):
         cached = 0
         if completion.usage.prompt_tokens_details:
           cached = completion.usage.prompt_tokens_details.cached_tokens
-        self.meter.record_usage(
+        self.record_usage(
           input_tokens=completion.usage.prompt_tokens,
           cached_tokens=cached,
           output_tokens=completion.usage.completion_tokens,

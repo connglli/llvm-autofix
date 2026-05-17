@@ -41,7 +41,7 @@ class GPTGenericAgent(GenericAgent):
           and chunk.usage.prompt_tokens_details.cached_tokens
         ):
           cached = chunk.usage.prompt_tokens_details.cached_tokens
-        self.meter.record_usage(
+        self.record_usage(
           input_tokens=chunk.usage.prompt_tokens or 0,
           cached_tokens=cached,
           output_tokens=chunk.usage.completion_tokens or 0,

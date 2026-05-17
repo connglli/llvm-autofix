@@ -16,7 +16,13 @@ from harness.lms.message import (
   ChatMessageFunctionCallOutput,
   ChatMessageMessage,
 )
-from harness.lms.meter import AgentMeter, GlobalMeter, ReachRoundLimit, ReachTokenLimit
+from harness.lms.meter import (
+  AgentMeter,
+  GlobalMeter,
+  ReachRoundLimit,
+  ReachTokenLimit,
+  TokenUsage,
+)
 from harness.lms.skill import SkillTool, load_skill
 from harness.lms.tool import (
   TOOL_SEARCH_NAME,
@@ -160,6 +166,7 @@ class AgentBase:
     self.tools = ToolRegistry()
     self.meter: AgentMeter = GlobalMeter.instance().create_meter()
     self.console = get_boxed_console(debug_mode=config.debug_mode)
+    self.last_round_usage = TokenUsage()
 
   def is_debug_mode(self):
     return self.debug_mode
@@ -284,6 +291,20 @@ class AgentBase:
       file_prefix=f"toolcall_{tool_name}_",
       char_limit=15000,
       line_limit=500,
+    )
+
+  def record_usage(
+    self, *, input_tokens: int, output_tokens: int, cached_tokens: int = 0
+  ) -> None:
+    self.meter.record_usage(
+      input_tokens=input_tokens,
+      cached_tokens=cached_tokens,
+      output_tokens=output_tokens,
+    )
+    self.last_round_usage = TokenUsage(
+      input_tokens=input_tokens,
+      cached_tokens=cached_tokens,
+      output_tokens=output_tokens,
     )
 
   def _get_remaining_tools(self) -> list[FuncToolBase]:

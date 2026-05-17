@@ -48,7 +48,7 @@ class ClaudeGenericAgent(GenericAgent):
       response.usage.cache_creation_input_tokens or 0
     )
     input_tokens = response.usage.input_tokens + cached_tokens
-    self.meter.record_usage(
+    self.record_usage(
       input_tokens=input_tokens,
       cached_tokens=cached_tokens,
       output_tokens=response.usage.output_tokens,
