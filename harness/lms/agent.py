@@ -86,6 +86,12 @@ class AgentConfig:
   max_completion_tokens: int = 8092
   reasoning_effort: ReasoningEffort = "NOT_GIVEN"
   debug_mode: bool = False
+  # When True (default), the agent's chat history is compacted via
+  # :class:`harness.lms.memory.MemoryCompactor` once the estimated next
+  # request crosses ``compaction_threshold_tokens``. Set False to disable —
+  # also used to break the recursion on the summarizer sub-agent.
+  enable_memory_compaction: bool = True
+  compaction_threshold_tokens: int = 100_000
 
   def create_agent(
     self,
@@ -167,6 +173,17 @@ class AgentBase:
     self.meter: AgentMeter = GlobalMeter.instance().create_meter()
     self.console = get_boxed_console(debug_mode=config.debug_mode)
     self.last_round_usage = TokenUsage()
+
+    # Built lazily-but-once. Disabled (``None``) when
+    # ``config.enable_memory_compaction`` is False — the summarizer
+    # sub-agent sets this to break the otherwise-infinite recursion.
+    self.compactor: Optional["MemoryCompactor"] = None
+    if config.enable_memory_compaction:
+      from harness.lms.memory import MemoryCompactor
+
+      self.compactor = MemoryCompactor(
+        agent_config=config, threshold_tokens=config.compaction_threshold_tokens
+      )
 
   def is_debug_mode(self):
     return self.debug_mode
@@ -307,18 +324,69 @@ class AgentBase:
       output_tokens=output_tokens,
     )
 
-  def _get_remaining_tools(self) -> list[FuncToolBase]:
-    remaining = [self.tools.get(name) for name in self.tools.list(ignore_budget=False)]
-    self.console.print(
-      "Remaining tools: "
-      + str(
-        [
-          f"{tool.name()}[{ToolRegistry.format_budget(self.tools.get_remaining_budget(tool.name()))}]"
-          for tool in remaining
-        ]
+  def format_context_window_status(self) -> str:
+    if self.compactor is not None:
+      return "Context window: {}% used ({}/{} tokens)".format(
+        round(
+          self.last_round_usage.total_tokens
+          / self.config.compaction_threshold_tokens
+          * 100,
+          2,
+        ),
+        self.last_round_usage.total_tokens,
+        self.config.compaction_threshold_tokens,
       )
-    )
-    return remaining
+    else:
+      return "Context window: unlimited (compaction disabled)"
+
+  def maybe_compact_history(self) -> bool:
+    """Compact the chat history when the next request would be too large.
+
+    Returns True iff compaction actually fired. Cheap to call every round.
+
+    Three guards before the (expensive) summarization path runs:
+
+    * compaction disabled (``compactor is None``) — most importantly the
+      summarizer sub-agent itself, to break the recursion;
+    * history empty (nothing to compact);
+    * last message is from the assistant — compacting mid-turn would orphan
+      a dangling tool call or replace text the driver is about to act on.
+      Only "user-side" tails (user/system message or tool result) are
+      eligible.
+
+    On success the new history is ``[summary_user_message, *tail]`` — the
+    summary replaces the bulky middle, and the tail survives verbatim so
+    the agent has the exact context for whatever it was about to do next.
+    The tail is the last ``(tool_call, tool_result)`` pair if the history
+    ended in a tool result, otherwise just the trailing user message.
+    Resets ``last_round_usage`` so the next round establishes a fresh
+    baseline before the next compaction check.
+    """
+    if self.compactor is None:
+      return False  # Compaction disabled
+    if not self.history:
+      return False  # Nothing to compact
+    last = self.history[-1]
+    if not last.is_from_user():
+      # Don't compact mid-turn; wait for the assistant's next message
+      # to preserve context for tool calls and driver actions
+      return False
+    if not self.compactor.should_compact(self.history, self.last_round_usage):
+      return False  # Next request isn't too big yet
+    self.console.print("Compacting working memory ...")
+    before = len(self.history)
+    summary = self.compactor.compact(self.history)
+    # We keep the tail intact to preserve the exact context for the next turn.
+    # If the last message is a tool result, we keep the last tool call as well
+    # to preserve the context for the driver.
+    tail_size = 2 if isinstance(last, ChatMessageFunctionCallOutput) else 1
+    tail = self.history[-tail_size:]
+    self.clear_history()
+    self.append_user_message(summary)
+    self.history.extend(tail)
+    self.last_round_usage = TokenUsage()
+    self.console.print(f"Compacted {before} messages -> {len(self.history)}")
+    return True
 
   def run_skill(
     self,
@@ -408,6 +476,19 @@ class AgentBase:
       result = "Error: budget exhausted without producing a result"
 
     return result
+
+  def _get_remaining_tools(self) -> list[FuncToolBase]:
+    remaining = [self.tools.get(name) for name in self.tools.list(ignore_budget=False)]
+    self.console.print(
+      "Remaining tools: "
+      + str(
+        [
+          f"{tool.name()}[{ToolRegistry.format_budget(self.tools.get_remaining_budget(tool.name()))}]"
+          for tool in remaining
+        ]
+      )
+    )
+    return remaining
 
   @retry(wait=wait_random_exponential(min=1, max=60), stop=stop_after_attempt(3))
   def _completion_api_with_backoff(self, **kwargs):

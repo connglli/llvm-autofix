@@ -1,3 +1,4 @@
+import dataclasses
 import random
 import tempfile
 from pathlib import Path
@@ -221,13 +222,57 @@ Steps:
     )
 
 
+def test_compaction(config: AgentConfig):
+  """Demo: memory compactor — lower the threshold so compaction fires
+  after only a few tool calls. The task forces many rounds: fetch
+  weather for every city in each region one at a time, compute each
+  region's average, then summarize.
+  """
+  config = dataclasses.replace(config, compaction_threshold_tokens=2000)
+  lm = config.create_agent(
+    tools=[(GetWeather(), 100), (GetAverage(), 100), (FinishTask(), 1)],
+  )
+  lm.console.print(f"Using model: {lm.model}")
+  lm.console.print(
+    f"Compaction threshold: {config.compaction_threshold_tokens} tokens (low, for testing)"
+  )
+
+  lm.append_user_message(
+    "Compute average temperatures for these regional groups, one group at a time. "
+    "For each group: fetch weather for every city in Celsius, then call `get_average` "
+    "on the temperatures, then move on. When all four averages are known, call "
+    "`finish` with a summary table.\n\n"
+    "Date: 2026-05-17\n\n"
+    "1. European: Zurich, London, Paris, Berlin, Madrid\n"
+    "2. American: New York, Los Angeles, Chicago, Miami, Houston, Toronto\n"
+    "3. Asian: Beijing, Shanghai, Chongqing, Hong Kong, Macau, "
+    "Chinese Taipei, Tokyo, Seoul, Singapore, Mumbai\n"
+    "4. Australian: Sydney, Melbourne, Brisbane, Perth\n"
+  )
+
+  lm.run(
+    AgentHooks(
+      post_response=lambda x: (
+        True,
+        "Error: You're NOT calling any tool or you called with an INCORRECT format. Always select a tool to call with correct Tool Call Format. If you're done with the task, call the 'finish' tool with the result.",
+      ),
+      post_tool_call=lambda tool, args, res: (
+        tool != "finish",
+        f"Good. The model gives the result: {res}" if tool == "finish" else res,
+      ),
+    ),
+  )
+
+
 if __name__ == "__main__":
   from argparse import ArgumentParser
 
   parser = ArgumentParser(description="Demo for agent tools and skills.")
-  parser.add_argument("demo", choices=["weather", "skill"], help="Which demo to run.")
   parser.add_argument(
-    "--model", "-m", default="gpt-4.1-mini", help="Model name (default: gpt-4.1-mini)."
+    "demo", choices=["weather", "skill", "compaction"], help="Which demo to run."
+  )
+  parser.add_argument(
+    "--model", "-m", default="gpt-5-mini", help="Model name (default: gpt-5-mini)."
   )
   parser.add_argument(
     "--driver",
@@ -257,3 +302,5 @@ if __name__ == "__main__":
     test_weather(config)
   elif args.demo == "skill":
     test_skill(config)
+  elif args.demo == "compaction":
+    test_compaction(config)

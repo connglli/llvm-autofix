@@ -1,15 +1,18 @@
 import json
 import os
-import warnings
 
 from anthropic import Anthropic, omit
+from typing_extensions import deprecated
 
 from harness.lms.agent import AgentBase, AgentConfig, AgentHooks
-from harness.lms.message import ChatMessageMessage
+from harness.lms.message import (
+  ChatMessageFunctionCall,
+  ChatMessageMessage,
+)
 from harness.lms.meter import GlobalMeter
 
 
-@warnings.deprecated("Use ClaudeGenericAgent instead")
+@deprecated("Use ClaudeGenericAgent instead")
 class ClaudeAgent(AgentBase):
   def __init__(self, config: AgentConfig):
     super().__init__(config)
@@ -30,10 +33,12 @@ class ClaudeAgent(AgentBase):
     base_url = os.environ.get("LLVM_HARNESS_LM_API_ENDPOINT") or None
     self.client = Anthropic(api_key=api_key, base_url=base_url)
 
-  def run(
-    self,
-    hooks: AgentHooks,
-  ) -> str:
+  def render_message_list(self) -> list[dict]:
+    """Serialize :attr:`history` into Claude's strict-alternation message
+    format. A ``ChatMessageFunctionCall`` folds into the immediately
+    preceding assistant message (so text + tool_use ship as one turn);
+    otherwise it stands alone (post-compaction tail).
+    """
     messages = []
     if self.tools.has_deferred_tools():
       messages.append(
@@ -46,17 +51,52 @@ class ClaudeAgent(AgentBase):
           "description and specification before calling them.",
         }
       )
-    for message in self.history:
-      if isinstance(message, ChatMessageMessage):
+
+    for msg in self.history:
+      if isinstance(msg, ChatMessageMessage) and msg.role != "assistant":
+        # user (and system, which our framework degrades to user historically)
+        role = "user" if msg.role == "system" else msg.role
+        messages.append({"role": role, "content": msg.content})
+      elif isinstance(msg, ChatMessageMessage):  # role == "assistant"
+        if msg.content:  # Claude rejects empty text blocks
+          messages.append(
+            {"role": "assistant", "content": [{"type": "text", "text": msg.content}]}
+          )
+      elif isinstance(msg, ChatMessageFunctionCall):
+        block = {
+          "type": "tool_use",
+          "id": msg.call_id,
+          "name": msg.name,
+          "input": json.loads(msg.arguments) if msg.arguments else {},
+        }
+        if messages and messages[-1]["role"] == "assistant":
+          messages[-1]["content"].append(block)
+        else:
+          messages.append({"role": "assistant", "content": [block]})
+      else:  # ChatMessageFunctionCallOutput
         messages.append(
           {
-            "role": message.role,
-            "content": message.content,
+            "role": "user",
+            "content": [
+              {
+                "type": "tool_result",
+                "tool_use_id": msg.call_id,
+                "content": msg.output,
+              },
+            ],
           }
         )
+    return messages
+
+  def run(self, hooks: AgentHooks) -> str:
+    messages = self.render_message_list()
     while True:
       self.console.print(GlobalMeter.format_status(self.meter))
+      self.console.print(self.format_context_window_status())
       self.meter.record_round()
+
+      if self.maybe_compact_history():
+        messages = self.render_message_list()
 
       remaining_tools = self._get_remaining_tools()
       response = self._completion_api_with_backoff(

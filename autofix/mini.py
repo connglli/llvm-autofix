@@ -49,6 +49,7 @@ AGENT_MAX_COMPLETION_TOKENS = 8192  # 32_768
 AGENT_REASONINT_EFFORT = "NOT_GIVEN"  # "xhigh"
 AGENT_MAX_CHAT_ROUNDS = 500  # 1000
 AGENT_MAX_CONSUMED_TOKENS = 5_000_000  # 10_000_000
+AGENT_COMPACTION_THRESHOLD_TOKENS = 600_000  # 1_000_000
 # We give context gathering tools more budget and restrict the models
 # to be careful and think twice when they are editing and testing.
 MAX_TCS_LIGHTWEIGHT_TOOLS = 250
@@ -1241,6 +1242,8 @@ def build_agent_config(driver: str, model: str, debug: bool) -> AgentConfig:
     top_p=AGENT_TOP_P,
     max_completion_tokens=AGENT_MAX_COMPLETION_TOKENS,
     reasoning_effort=AGENT_REASONINT_EFFORT,
+    enable_memory_compaction=True,
+    compaction_threshold_tokens=AGENT_COMPACTION_THRESHOLD_TOKENS,
     debug_mode=debug,
   )
 

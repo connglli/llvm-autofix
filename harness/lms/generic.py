@@ -108,7 +108,19 @@ class GenericAgent(AgentBase):
 
     while True:
       self.console.print(GlobalMeter.format_status(self.meter))
+      self.console.print(self.format_context_window_status())
       self.meter.record_round()
+
+      if self.maybe_compact_history():
+        if tool_call_inst_index != -1:
+          # Compaction wiped out the slot where the tool-call instruction
+          # used to live. Append a fresh placeholder and remember its new
+          # index — the block below overwrites it in-place with the
+          # current tool list before the next API call.
+          self.append_user_message(
+            "NOTICE: Ignore this message. This is a placeholder for the tool call instruction."
+          )
+          tool_call_inst_index = len(self.history) - 1
 
       remaining_tools = self._get_remaining_tools()
       if tool_call_inst_index != -1:

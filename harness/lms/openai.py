@@ -1,9 +1,9 @@
 import json
 import os
-import warnings
 from typing import List
 
 from openai import NOT_GIVEN, OpenAI
+from typing_extensions import deprecated
 
 from harness.lms.agent import AgentBase, AgentConfig, AgentHooks
 from harness.lms.message import (
@@ -14,7 +14,7 @@ from harness.lms.message import (
 from harness.lms.meter import GlobalMeter
 
 
-@warnings.deprecated("Use GPTGenericAgent instead")
+@deprecated("Use GPTGenericAgent instead")
 class GPTAgent(AgentBase):
   def __init__(self, config: AgentConfig):
     super().__init__(config)
@@ -71,7 +71,6 @@ class GPTAgent(AgentBase):
             "content": message.output,
           }
         )
-
     return messages
 
   def run(
@@ -80,7 +79,10 @@ class GPTAgent(AgentBase):
   ) -> str:
     while True:
       self.console.print(GlobalMeter.format_status(self.meter))
+      self.console.print(self.format_context_window_status())
       self.meter.record_round()
+
+      self.maybe_compact_history()
 
       remaining_tools = self._get_remaining_tools()
       completion = self._completion_api_with_backoff(
