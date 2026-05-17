@@ -3,7 +3,7 @@ from __future__ import annotations
 from abc import abstractmethod
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable, List, Literal, Optional, Tuple, Type, Union
+from typing import Callable, List, Literal, Optional, Tuple, Type
 
 from tenacity import (
   retry,
@@ -11,6 +11,11 @@ from tenacity import (
   wait_random_exponential,
 )  # for exponential backoff
 
+from harness.lms.message import (
+  ChatMessageFunctionCall,
+  ChatMessageFunctionCallOutput,
+  ChatMessageMessage,
+)
 from harness.lms.meter import AgentMeter, GlobalMeter, ReachRoundLimit, ReachTokenLimit
 from harness.lms.skill import SkillTool, load_skill
 from harness.lms.tool import (
@@ -21,40 +26,6 @@ from harness.lms.tool import (
 )
 from harness.utils.console import get_boxed_console
 from harness.utils.text import spill_if_too_long
-
-# ---------------------------------------------------------------------------
-# Agent messages
-# ---------------------------------------------------------------------------
-
-
-@dataclass
-class ChatMessage:
-  type: Union[
-    Literal["message"], Literal["function_call"], Literal["function_call_output"]
-  ]
-
-
-@dataclass
-class ChatMessageMessage(ChatMessage):
-  role: str = Union[Literal["system"], Literal["user"], Literal["assistant"]]
-  content: str = ""
-  type: str = "message"
-
-
-@dataclass
-class ChatMessageFunctionCall(ChatMessage):
-  call_id: str = ""
-  name: str = ""
-  arguments: str = ""
-  type: str = "function_call"
-
-
-@dataclass
-class ChatMessageFunctionCallOutput(ChatMessage):
-  call_id: str = ""
-  output: str = ""
-  type: str = "function_call_output"
-
 
 # ---------------------------------------------------------------------------
 # Agent hooks

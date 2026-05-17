@@ -5,10 +5,8 @@ from typing import Dict, List, Optional, Tuple
 
 import json_repair
 
-from harness.lms.agent import (
-  AgentBase,
-  AgentConfig,
-  AgentHooks,
+from harness.lms.agent import AgentBase, AgentConfig, AgentHooks
+from harness.lms.message import (
   ChatMessageFunctionCall,
   ChatMessageFunctionCallOutput,
   ChatMessageMessage,

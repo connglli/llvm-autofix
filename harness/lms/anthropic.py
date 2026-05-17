@@ -4,12 +4,8 @@ import warnings
 
 from anthropic import Anthropic, omit
 
-from harness.lms.agent import (
-  AgentBase,
-  AgentConfig,
-  AgentHooks,
-  ChatMessageMessage,
-)
+from harness.lms.agent import AgentBase, AgentConfig, AgentHooks
+from harness.lms.message import ChatMessageMessage
 from harness.lms.meter import GlobalMeter
 
 

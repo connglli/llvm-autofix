@@ -5,10 +5,8 @@ from typing import List
 
 from openai import NOT_GIVEN, OpenAI
 
-from harness.lms.agent import (
-  AgentBase,
-  AgentConfig,
-  AgentHooks,
+from harness.lms.agent import AgentBase, AgentConfig, AgentHooks
+from harness.lms.message import (
   ChatMessageFunctionCall,
   ChatMessageFunctionCallOutput,
   ChatMessageMessage,
